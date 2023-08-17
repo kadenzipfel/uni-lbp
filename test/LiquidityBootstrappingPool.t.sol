@@ -114,4 +114,34 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         vm.expectRevert(bytes4(keccak256("InvalidAmountProvided()")));
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
     }
+
+    function testAfterInitializeRevertsInvalidTimeRange() public {
+        // CASE 1: startTime > endTime
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            amountProvided: uint128(0),
+            startTime: uint64(block.timestamp + 86400),
+            endTime: uint64(block.timestamp),
+            minTick: int24(0),
+            maxTick: int24(1000)
+        });
+
+        vm.expectRevert(bytes4(keccak256("InvalidTimeRange()")));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        // CASE 2: endTime < block.timestamp
+        vm.warp(1000);
+
+        liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            amountProvided: uint128(0),
+            startTime: uint64(998),
+            endTime: uint64(999),
+            minTick: int24(0),
+            maxTick: int24(1000)
+        });
+
+        vm.expectRevert(bytes4(keccak256("InvalidTimeRange()")));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+    }
 }
