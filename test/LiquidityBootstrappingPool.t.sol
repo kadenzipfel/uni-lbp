@@ -144,4 +144,49 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         vm.expectRevert(bytes4(keccak256("InvalidTimeRange()")));
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
     }
+
+    function testAfterInitializeRevertsInvalidTickRange() public {
+        // CASE 1: minTick > maxTick
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            amountProvided: uint128(0),
+            startTime: uint64(block.timestamp),
+            endTime: uint64(block.timestamp + 86400),
+            minTick: int24(1000),
+            maxTick: int24(0)
+        });
+
+        vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        // CASE 2: minTick < minUsableTick
+        int24 minUsableTick = TickMath.minUsableTick(MAX_TICK_SPACING);
+
+        liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            amountProvided: uint128(0),
+            startTime: uint64(block.timestamp),
+            endTime: uint64(block.timestamp + 86400),
+            minTick: int24(minUsableTick - 1),
+            maxTick: int24(0)
+        });
+
+        vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        // CASE 3: maxTick > maxUsableTick
+        int24 maxUsableTick = TickMath.maxUsableTick(MAX_TICK_SPACING);
+
+        liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            amountProvided: uint128(0),
+            startTime: uint64(block.timestamp),
+            endTime: uint64(block.timestamp + 86400),
+            minTick: int24(0),
+            maxTick: int24(maxUsableTick + 1)
+        });
+
+        vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+    }
 }
