@@ -10,6 +10,15 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/contracts/types/PoolId.sol
 contract LiquidityBootstrappingPool is BaseHook {
     using PoolIdLibrary for PoolKey;
 
+    struct LiquidityInfo {
+        uint128 totalAmount;     // The total amount of liquidity to provide
+        uint128 amountProvided;  // The amount of liquidity already provided
+        uint64 startTime;        // Start time of the liquidity bootstrapping period
+        uint64 endTime;          // End time of the liquidity bootstrapping period
+        int24 minTick;           // The minimum tick to provide liquidity at
+        int24 maxTick;           // The maximum tick to provide liquidity at
+    }
+
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
     function getHooksCalls() public pure override returns (Hooks.Calls memory) {
