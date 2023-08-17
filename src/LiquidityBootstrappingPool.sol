@@ -34,11 +34,11 @@ contract LiquidityBootstrappingPool is BaseHook {
         });
     }
 
-    function afterInitialize(address, PoolKey calldata, uint160, int24) external override poolManagerOnly returns (bytes4) {
+    function afterInitialize(address, PoolKey calldata, uint160, int24, bytes calldata) external override poolManagerOnly returns (bytes4) {
         return LiquidityBootstrappingPool.afterInitialize.selector;
     }
 
-    function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata)
+    function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
         poolManagerOnly
