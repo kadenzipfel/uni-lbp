@@ -6,6 +6,11 @@ import {Hooks} from "@uniswap/v4-core/contracts/libraries/Hooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/contracts/interfaces/IPoolManager.sol";
 import {PoolKey} from "@uniswap/v4-core/contracts/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/contracts/types/PoolId.sol";
+import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
+
+error InvalidAmountProvided();
+error InvalidTimeRange();
+error InvalidTickRange();
 
 contract LiquidityBootstrappingPool is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -36,13 +41,25 @@ contract LiquidityBootstrappingPool is BaseHook {
         });
     }
 
-    function afterInitialize(address, PoolKey calldata, uint160, int24, bytes calldata data)
+    function afterInitialize(address, PoolKey calldata key, uint160, int24, bytes calldata data)
         external
         override
         poolManagerOnly
         returns (bytes4)
     {
-        liquidityInfo = abi.decode(data, (LiquidityInfo));
+        LiquidityInfo memory liquidityInfo_ = abi.decode(data, (LiquidityInfo));
+
+        if (liquidityInfo_.amountProvided != 0) revert InvalidAmountProvided();
+        if (liquidityInfo_.startTime > liquidityInfo_.endTime || liquidityInfo_.endTime < block.timestamp) {
+            revert InvalidTimeRange();
+        }
+        if (
+            liquidityInfo_.minTick > liquidityInfo_.maxTick
+                || liquidityInfo_.minTick < TickMath.minUsableTick(key.tickSpacing)
+                || liquidityInfo_.maxTick > TickMath.maxUsableTick(key.tickSpacing)
+        ) revert InvalidTickRange();
+
+        liquidityInfo = liquidityInfo_;
 
         return LiquidityBootstrappingPool.afterInitialize.selector;
     }
