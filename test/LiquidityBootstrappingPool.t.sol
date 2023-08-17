@@ -23,15 +23,21 @@ contract LiquidityBootstrappingPool is Test, Deployers {
     TestERC20 token0;
     TestERC20 token1;
     PoolManager manager;
-    LiquidityBootstrappingPoolImplementation liquidityBootstrappingPool = LiquidityBootstrappingPoolImplementation(
-        address(
-            uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG)
-        )
-    );
+    LiquidityBootstrappingPoolImplementation liquidityBootstrappingPool =
+        LiquidityBootstrappingPoolImplementation(address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG)));
     PoolKey key;
     PoolId id;
 
     PoolSwapTest swapRouter;
+
+    struct LiquidityInfo {
+        uint128 totalAmount; // The total amount of liquidity to provide
+        uint128 amountProvided; // The amount of liquidity already provided
+        uint64 startTime; // Start time of the liquidity bootstrapping period
+        uint64 endTime; // End time of the liquidity bootstrapping period
+        int24 minTick; // The minimum tick to provide liquidity at
+        int24 maxTick; // The maximum tick to provide liquidity at
+    }
 
     function setUp() public {
         token0 = new TestERC20(2**128);
@@ -56,7 +62,11 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             }
         }
         key = PoolKey(
-            Currency.wrap(address(token0)), Currency.wrap(address(token1)), 0, MAX_TICK_SPACING, liquidityBootstrappingPool
+            Currency.wrap(address(token0)),
+            Currency.wrap(address(token1)),
+            0,
+            MAX_TICK_SPACING,
+            liquidityBootstrappingPool
         );
         id = key.toId();
 
@@ -66,5 +76,28 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         token1.approve(address(liquidityBootstrappingPool), type(uint256).max);
         token0.approve(address(swapRouter), type(uint256).max);
         token1.approve(address(swapRouter), type(uint256).max);
+    }
+
+    function testAfterInitializeSetsStorage() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            amountProvided: uint128(0),
+            startTime: uint64(block.timestamp),
+            endTime: uint64(block.timestamp + 86400),
+            minTick: int24(0),
+            maxTick: int24(1000)
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        (uint128 totalAmount, uint128 amountProvided, uint64 startTime, uint64 endTime, int24 minTick, int24 maxTick) =
+            liquidityBootstrappingPool.liquidityInfo();
+
+        assertEq(totalAmount, liquidityInfo.totalAmount);
+        assertEq(amountProvided, liquidityInfo.amountProvided);
+        assertEq(startTime, liquidityInfo.startTime);
+        assertEq(endTime, liquidityInfo.endTime);
+        assertEq(minTick, liquidityInfo.minTick);
+        assertEq(maxTick, liquidityInfo.maxTick);
     }
 }

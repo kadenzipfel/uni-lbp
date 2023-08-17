@@ -11,15 +11,15 @@ contract LiquidityBootstrappingPool is BaseHook {
     using PoolIdLibrary for PoolKey;
 
     struct LiquidityInfo {
-        uint128 totalAmount;     // The total amount of liquidity to provide
-        uint128 amountProvided;  // The amount of liquidity already provided
-        uint64 startTime;        // Start time of the liquidity bootstrapping period
-        uint64 endTime;          // End time of the liquidity bootstrapping period
-        int24 minTick;           // The minimum tick to provide liquidity at
-        int24 maxTick;           // The maximum tick to provide liquidity at
+        uint128 totalAmount; // The total amount of liquidity to provide
+        uint128 amountProvided; // The amount of liquidity already provided
+        uint64 startTime; // Start time of the liquidity bootstrapping period
+        uint64 endTime; // End time of the liquidity bootstrapping period
+        int24 minTick; // The minimum tick to provide liquidity at
+        int24 maxTick; // The maximum tick to provide liquidity at
     }
 
-    LiquidityInfo liquidityInfo;
+    LiquidityInfo public liquidityInfo;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
@@ -36,7 +36,12 @@ contract LiquidityBootstrappingPool is BaseHook {
         });
     }
 
-    function afterInitialize(address, PoolKey calldata, uint160, int24, bytes calldata data) external override poolManagerOnly returns (bytes4) {
+    function afterInitialize(address, PoolKey calldata, uint160, int24, bytes calldata data)
+        external
+        override
+        poolManagerOnly
+        returns (bytes4)
+    {
         liquidityInfo = abi.decode(data, (LiquidityInfo));
 
         return LiquidityBootstrappingPool.afterInitialize.selector;

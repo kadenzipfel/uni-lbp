@@ -7,10 +7,9 @@ import {IPoolManager} from "@uniswap/v4-core/contracts/interfaces/IPoolManager.s
 import {Hooks} from "@uniswap/v4-core/contracts/libraries/Hooks.sol";
 
 contract LiquidityBootstrappingPoolImplementation is LiquidityBootstrappingPool {
-    constructor(
-        IPoolManager _poolManager,
-        LiquidityBootstrappingPool addressToEtch
-    ) LiquidityBootstrappingPool(_poolManager) {
+    constructor(IPoolManager _poolManager, LiquidityBootstrappingPool addressToEtch)
+        LiquidityBootstrappingPool(_poolManager)
+    {
         Hooks.validateHookAddress(addressToEtch, getHooksCalls());
     }
 
