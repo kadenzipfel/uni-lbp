@@ -19,8 +19,6 @@ contract LiquidityBootstrappingPool is BaseHook {
         int24 maxTick;           // The maximum tick to provide liquidity at
     }
 
-    LiquidityInfo liquidityInfo;
-
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
     function getHooksCalls() public pure override returns (Hooks.Calls memory) {
@@ -36,9 +34,7 @@ contract LiquidityBootstrappingPool is BaseHook {
         });
     }
 
-    function afterInitialize(address, PoolKey calldata, uint160, int24, bytes calldata data) external override poolManagerOnly returns (bytes4) {
-        liquidityInfo = abi.decode(data, (LiquidityInfo));
-
+    function afterInitialize(address, PoolKey calldata, uint160, int24, bytes calldata) external override poolManagerOnly returns (bytes4) {
         return LiquidityBootstrappingPool.afterInitialize.selector;
     }
 
