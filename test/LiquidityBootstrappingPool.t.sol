@@ -100,4 +100,18 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         assertEq(minTick, liquidityInfo.minTick);
         assertEq(maxTick, liquidityInfo.maxTick);
     }
+
+    function testAfterInitializeRevertsInvalidAmountProvided() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            amountProvided: uint128(1),
+            startTime: uint64(block.timestamp),
+            endTime: uint64(block.timestamp + 86400),
+            minTick: int24(0),
+            maxTick: int24(1000)
+        });
+
+        vm.expectRevert(bytes4(keccak256("InvalidAmountProvided()")));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+    }
 }
