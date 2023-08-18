@@ -73,6 +73,14 @@ contract LiquidityBootstrappingPool is BaseHook {
         poolManagerOnly
         returns (bytes4)
     {
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+
+        if (liquidityInfo_.startTime > block.timestamp) {
+            // Liquidity bootstrapping period has not started yet, 
+            // allowing swapping as usual
+            return LiquidityBootstrappingPool.beforeSwap.selector;
+        }
+
         return LiquidityBootstrappingPool.beforeSwap.selector;
     }
 
