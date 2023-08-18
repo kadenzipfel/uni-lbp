@@ -76,4 +76,21 @@ contract LiquidityBootstrappingPool is BaseHook {
     {
         return LiquidityBootstrappingPool.beforeSwap.selector;
     }
+
+    function _getCurrentMinTick() internal view returns (int24) {
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+
+        uint256 timeElapsed = block.timestamp - uint256(liquidityInfo_.startTime);
+        uint256 timeTotal = uint256(liquidityInfo_.endTime) - uint256(liquidityInfo_.startTime);
+
+        // Get the minimum tick of the liquidity range such that:
+        // (maxTick - minTickNew) / (maxTick - minTick) = timeElapsed / timeTotal
+        // Solving for minTickNew, we get:
+        // minTickNew = maxTick - ((timeElapsed / timeTotal) * (maxTick - minTick))
+        // To avoid integer truncation, we rearrange as follows:
+        // numerator = timeElapsed * (maxTick - minTick)
+        // minTickNew = maxTick - (numerator / timeTotal)
+        int256 numerator = int256(timeElapsed) * int256(liquidityInfo_.maxTick - liquidityInfo_.minTick);
+        return int24(int256(liquidityInfo_.maxTick) - (numerator / int256(timeTotal)));
+    }
 }
