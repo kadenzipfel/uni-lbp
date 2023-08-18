@@ -233,4 +233,20 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         assertTrue(liquidityBootstrappingPool.getTargetMinTick() < maxTick || liquidityBootstrappingPool.getTargetMinTick() == maxTick);
         assertTrue(liquidityBootstrappingPool.getTargetMinTick() > minTick || liquidityBootstrappingPool.getTargetMinTick() == minTick);
     }
+
+    function testGetTargetLiquidity() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(42069e18),
+            startTime: uint32(100000),
+            endTime: uint32(100000 + 864000), // 10 day range
+            minTick: int24(-42069),
+            maxTick: int24(42069)
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        // CASE 1: No time has passed, so the target liquidity should be 0
+        vm.warp(100000);
+        assertEq(liquidityBootstrappingPool.getTargetLiquidity(), 0);
+    }
 }

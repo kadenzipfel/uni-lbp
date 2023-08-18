@@ -19,4 +19,8 @@ contract LiquidityBootstrappingPoolImplementation is LiquidityBootstrappingPool 
     function getTargetMinTick() public view returns (int24) {
         return _getTargetMinTick();
     }
+
+    function getTargetLiquidity() public view returns (uint256) {
+        return _getTargetLiquidity();
+    }
 }
