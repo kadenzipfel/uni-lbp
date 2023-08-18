@@ -235,4 +235,26 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         vm.expectRevert(bytes4(keccak256("BeforeStartTime()")));
         liquidityBootstrappingPool.getCurrentMinTick();
     }
+
+    // int16 ticks to ensure they're within the usable tick range
+    function testFuzzGetCurrentMinTick(uint32 startTime, uint16 timeRange, int16 minTick, int16 maxTick, uint8 timePassedDenominator) public {
+        vm.assume(minTick < maxTick);
+        vm.assume(timePassedDenominator > 0);
+        
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            amountProvided: uint128(0),
+            startTime: uint64(block.timestamp + startTime),
+            endTime: uint64(block.timestamp + startTime + timeRange),
+            minTick: int24(minTick),
+            maxTick: int24(maxTick)
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        vm.warp(block.timestamp + startTime + timeRange / timePassedDenominator);
+        // Assert less than or equal to maxTick and greater than or equal to minTick
+        assertTrue(liquidityBootstrappingPool.getCurrentMinTick() < maxTick || liquidityBootstrappingPool.getCurrentMinTick() == maxTick);
+        assertTrue(liquidityBootstrappingPool.getCurrentMinTick() > minTick || liquidityBootstrappingPool.getCurrentMinTick() == minTick);
+    }
 }
