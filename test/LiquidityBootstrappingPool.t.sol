@@ -179,19 +179,19 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-        // CASE 1: No time has passed, so the current min tick should be the max tick
+        // CASE 1: No time has passed, so the target min tick should be the max tick
         vm.warp(100000);
         assertEq(liquidityBootstrappingPool.getTargetMinTick(), 42069);
 
-        // CASE 2: Half the time has passed, so the current min tick should be the average of the min and max ticks
+        // CASE 2: Half the time has passed, so the target min tick should be the average of the min and max ticks
         vm.warp(100000 + 864000 / 2);
         assertEq(liquidityBootstrappingPool.getTargetMinTick(), 0);
 
-        // CASE 3: All the time has passed, so the current min tick should be the min tick
+        // CASE 3: All the time has passed, so the target min tick should be the min tick
         vm.warp(100000 + 864000);
         assertEq(liquidityBootstrappingPool.getTargetMinTick(), -42069);
 
-        // CASE 4: More time has passed, so the current min tick should still be the min tick
+        // CASE 4: More time has passed, so the target min tick should still be the min tick
         vm.warp(100000 + 864000 + 1000);
         assertEq(liquidityBootstrappingPool.getTargetMinTick(), -42069);
     }
