@@ -213,6 +213,10 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         // CASE 3: All the time has passed, so the current min tick should be the min tick
         vm.warp(100000 + 864000);
         assertEq(liquidityBootstrappingPool.getCurrentMinTick(), -42069);
+
+        // CASE 4: More time has passed, so the current min tick should still be the min tick
+        vm.warp(100000 + 864000 + 1000);
+        assertEq(liquidityBootstrappingPool.getCurrentMinTick(), -42069);
     }
 
     function testGetCurrentMinTickRevertsBeforeStartTime() public {
