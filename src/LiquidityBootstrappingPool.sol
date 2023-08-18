@@ -26,6 +26,8 @@ contract LiquidityBootstrappingPool is BaseHook {
 
     LiquidityInfo public liquidityInfo;
 
+    PoolId poolId;
+
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
     function getHooksCalls() public pure override returns (Hooks.Calls memory) {
@@ -60,6 +62,8 @@ contract LiquidityBootstrappingPool is BaseHook {
         ) revert InvalidTickRange();
 
         liquidityInfo = liquidityInfo_;
+        
+        poolId = key.toId();
 
         return LiquidityBootstrappingPool.afterInitialize.selector;
     }
