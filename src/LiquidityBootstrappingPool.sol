@@ -18,9 +18,8 @@ contract LiquidityBootstrappingPool is BaseHook {
 
     struct LiquidityInfo {
         uint128 totalAmount; // The total amount of liquidity to provide
-        uint128 amountProvided; // The amount of liquidity already provided
-        uint64 startTime; // Start time of the liquidity bootstrapping period
-        uint64 endTime; // End time of the liquidity bootstrapping period
+        uint32 startTime; // Start time of the liquidity bootstrapping period
+        uint32 endTime; // End time of the liquidity bootstrapping period
         int24 minTick; // The minimum tick to provide liquidity at
         int24 maxTick; // The maximum tick to provide liquidity at
     }
@@ -52,7 +51,6 @@ contract LiquidityBootstrappingPool is BaseHook {
     {
         LiquidityInfo memory liquidityInfo_ = abi.decode(data, (LiquidityInfo));
 
-        if (liquidityInfo_.amountProvided != 0) revert InvalidAmountProvided();
         if (liquidityInfo_.startTime > liquidityInfo_.endTime || liquidityInfo_.endTime < block.timestamp) {
             revert InvalidTimeRange();
         }

@@ -32,9 +32,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
     struct LiquidityInfo {
         uint128 totalAmount; // The total amount of liquidity to provide
-        uint128 amountProvided; // The amount of liquidity already provided
-        uint64 startTime; // Start time of the liquidity bootstrapping period
-        uint64 endTime; // End time of the liquidity bootstrapping period
+        uint32 startTime; // Start time of the liquidity bootstrapping period
+        uint32 endTime; // End time of the liquidity bootstrapping period
         int24 minTick; // The minimum tick to provide liquidity at
         int24 maxTick; // The maximum tick to provide liquidity at
     }
@@ -81,47 +80,30 @@ contract LiquidityBootstrappingPool is Test, Deployers {
     function testAfterInitializeSetsStorage() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
-            amountProvided: uint128(0),
-            startTime: uint64(block.timestamp),
-            endTime: uint64(block.timestamp + 86400),
+            startTime: uint32(block.timestamp),
+            endTime: uint32(block.timestamp + 86400),
             minTick: int24(0),
             maxTick: int24(1000)
         });
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-        (uint128 totalAmount, uint128 amountProvided, uint64 startTime, uint64 endTime, int24 minTick, int24 maxTick) =
+        (uint128 totalAmount, uint32 startTime, uint32 endTime, int24 minTick, int24 maxTick) =
             liquidityBootstrappingPool.liquidityInfo();
 
         assertEq(totalAmount, liquidityInfo.totalAmount);
-        assertEq(amountProvided, liquidityInfo.amountProvided);
         assertEq(startTime, liquidityInfo.startTime);
         assertEq(endTime, liquidityInfo.endTime);
         assertEq(minTick, liquidityInfo.minTick);
         assertEq(maxTick, liquidityInfo.maxTick);
     }
 
-    function testAfterInitializeRevertsInvalidAmountProvided() public {
-        LiquidityInfo memory liquidityInfo = LiquidityInfo({
-            totalAmount: uint128(1000e18),
-            amountProvided: uint128(1),
-            startTime: uint64(block.timestamp),
-            endTime: uint64(block.timestamp + 86400),
-            minTick: int24(0),
-            maxTick: int24(1000)
-        });
-
-        vm.expectRevert(bytes4(keccak256("InvalidAmountProvided()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
-    }
-
     function testAfterInitializeRevertsInvalidTimeRange() public {
         // CASE 1: startTime > endTime
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
-            amountProvided: uint128(0),
-            startTime: uint64(block.timestamp + 86400),
-            endTime: uint64(block.timestamp),
+            startTime: uint32(block.timestamp + 86400),
+            endTime: uint32(block.timestamp),
             minTick: int24(0),
             maxTick: int24(1000)
         });
@@ -134,9 +116,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
-            amountProvided: uint128(0),
-            startTime: uint64(998),
-            endTime: uint64(999),
+            startTime: uint32(998),
+            endTime: uint32(999),
             minTick: int24(0),
             maxTick: int24(1000)
         });
@@ -149,9 +130,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         // CASE 1: minTick > maxTick
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
-            amountProvided: uint128(0),
-            startTime: uint64(block.timestamp),
-            endTime: uint64(block.timestamp + 86400),
+            startTime: uint32(block.timestamp),
+            endTime: uint32(block.timestamp + 86400),
             minTick: int24(1000),
             maxTick: int24(0)
         });
@@ -164,9 +144,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
-            amountProvided: uint128(0),
-            startTime: uint64(block.timestamp),
-            endTime: uint64(block.timestamp + 86400),
+            startTime: uint32(block.timestamp),
+            endTime: uint32(block.timestamp + 86400),
             minTick: int24(minUsableTick - 1),
             maxTick: int24(0)
         });
@@ -179,9 +158,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
-            amountProvided: uint128(0),
-            startTime: uint64(block.timestamp),
-            endTime: uint64(block.timestamp + 86400),
+            startTime: uint32(block.timestamp),
+            endTime: uint32(block.timestamp + 86400),
             minTick: int24(0),
             maxTick: int24(maxUsableTick + 1)
         });
@@ -193,9 +171,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
     function testGetCurrentMinTick() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
-            amountProvided: uint128(0),
-            startTime: uint64(100000),
-            endTime: uint64(100000 + 864000), // 10 day range
+            startTime: uint32(100000),
+            endTime: uint32(100000 + 864000), // 10 day range
             minTick: int24(-42069),
             maxTick: int24(42069)
         });
@@ -222,9 +199,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
     function testGetCurrentMinTickRevertsBeforeStartTime() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
-            amountProvided: uint128(0),
-            startTime: uint64(100000),
-            endTime: uint64(100000 + 864000), // 10 day range
+            startTime: uint32(100000),
+            endTime: uint32(100000 + 864000), // 10 day range
             minTick: int24(-42069),
             maxTick: int24(42069)
         });
@@ -237,15 +213,15 @@ contract LiquidityBootstrappingPool is Test, Deployers {
     }
 
     // int16 ticks to ensure they're within the usable tick range
-    function testFuzzGetCurrentMinTick(uint32 startTime, uint16 timeRange, int16 minTick, int16 maxTick, uint8 timePassedDenominator) public {
+    // uint16 startTime to ensure the endTime doesn't exceed uint32.max
+    function testFuzzGetCurrentMinTick(uint16 startTime, uint16 timeRange, int16 minTick, int16 maxTick, uint8 timePassedDenominator) public {
         vm.assume(minTick < maxTick);
         vm.assume(timePassedDenominator > 0);
         
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
-            amountProvided: uint128(0),
-            startTime: uint64(block.timestamp + startTime),
-            endTime: uint64(block.timestamp + startTime + timeRange),
+            startTime: uint32(block.timestamp + startTime),
+            endTime: uint32(block.timestamp + startTime + timeRange),
             minTick: int24(minTick),
             maxTick: int24(maxTick)
         });
