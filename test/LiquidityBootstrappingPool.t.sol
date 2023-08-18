@@ -214,10 +214,16 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
     // int16 ticks to ensure they're within the usable tick range
     // uint16 startTime to ensure the endTime doesn't exceed uint32.max
-    function testFuzzGetTargetMinTick(uint16 startTime, uint16 timeRange, int16 minTick, int16 maxTick, uint8 timePassedDenominator) public {
+    function testFuzzGetTargetMinTick(
+        uint16 startTime,
+        uint16 timeRange,
+        int16 minTick,
+        int16 maxTick,
+        uint8 timePassedDenominator
+    ) public {
         vm.assume(minTick < maxTick);
         vm.assume(timePassedDenominator > 0);
-        
+
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
             startTime: uint32(block.timestamp + startTime),
@@ -230,8 +236,14 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         vm.warp(block.timestamp + startTime + timeRange / timePassedDenominator);
         // Assert less than or equal to maxTick and greater than or equal to minTick
-        assertTrue(liquidityBootstrappingPool.getTargetMinTick() < maxTick || liquidityBootstrappingPool.getTargetMinTick() == maxTick);
-        assertTrue(liquidityBootstrappingPool.getTargetMinTick() > minTick || liquidityBootstrappingPool.getTargetMinTick() == minTick);
+        assertTrue(
+            liquidityBootstrappingPool.getTargetMinTick() < maxTick
+                || liquidityBootstrappingPool.getTargetMinTick() == maxTick
+        );
+        assertTrue(
+            liquidityBootstrappingPool.getTargetMinTick() > minTick
+                || liquidityBootstrappingPool.getTargetMinTick() == minTick
+        );
     }
 
     function testGetTargetLiquidity() public {
@@ -278,10 +290,17 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         liquidityBootstrappingPool.getTargetLiquidity();
     }
 
-    function testFuzzGetTargetLiquidity(uint128 totalAmount, uint16 startTime, uint16 timeRange, int16 minTick, int16 maxTick, uint8 timePassedDenominator) public {
+    function testFuzzGetTargetLiquidity(
+        uint128 totalAmount,
+        uint16 startTime,
+        uint16 timeRange,
+        int16 minTick,
+        int16 maxTick,
+        uint8 timePassedDenominator
+    ) public {
         vm.assume(minTick < maxTick);
         vm.assume(timePassedDenominator > 0);
-        
+
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(totalAmount),
             startTime: uint32(block.timestamp + startTime),
@@ -294,6 +313,9 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         vm.warp(block.timestamp + startTime + timeRange / timePassedDenominator);
         // Assert less than or equal to target amount
-        assertTrue(liquidityBootstrappingPool.getTargetLiquidity() < totalAmount || liquidityBootstrappingPool.getTargetLiquidity() == totalAmount);
+        assertTrue(
+            liquidityBootstrappingPool.getTargetLiquidity() < totalAmount
+                || liquidityBootstrappingPool.getTargetLiquidity() == totalAmount
+        );
     }
 }

@@ -61,7 +61,7 @@ contract LiquidityBootstrappingPool is BaseHook {
         ) revert InvalidTickRange();
 
         liquidityInfo = liquidityInfo_;
-        
+
         poolId = key.toId();
 
         return LiquidityBootstrappingPool.afterInitialize.selector;
@@ -76,7 +76,7 @@ contract LiquidityBootstrappingPool is BaseHook {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
         if (liquidityInfo_.startTime > block.timestamp) {
-            // Liquidity bootstrapping period has not started yet, 
+            // Liquidity bootstrapping period has not started yet,
             // allowing swapping as usual
             return LiquidityBootstrappingPool.beforeSwap.selector;
         }
