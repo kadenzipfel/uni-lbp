@@ -277,4 +277,23 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         vm.expectRevert(bytes4(keccak256("BeforeStartTime()")));
         liquidityBootstrappingPool.getTargetLiquidity();
     }
+
+    function testFuzzGetTargetLiquidity(uint128 totalAmount, uint16 startTime, uint16 timeRange, int16 minTick, int16 maxTick, uint8 timePassedDenominator) public {
+        vm.assume(minTick < maxTick);
+        vm.assume(timePassedDenominator > 0);
+        
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(totalAmount),
+            startTime: uint32(block.timestamp + startTime),
+            endTime: uint32(block.timestamp + startTime + timeRange),
+            minTick: int24(minTick),
+            maxTick: int24(maxTick)
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        vm.warp(block.timestamp + startTime + timeRange / timePassedDenominator);
+        // Assert less than or equal to target amount
+        assertTrue(liquidityBootstrappingPool.getTargetLiquidity() < totalAmount || liquidityBootstrappingPool.getTargetLiquidity() == totalAmount);
+    }
 }
