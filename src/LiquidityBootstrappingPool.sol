@@ -11,6 +11,7 @@ import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
 error InvalidAmountProvided();
 error InvalidTimeRange();
 error InvalidTickRange();
+error BeforeStartTime();
 
 contract LiquidityBootstrappingPool is BaseHook {
     using PoolIdLibrary for PoolKey;
@@ -79,6 +80,10 @@ contract LiquidityBootstrappingPool is BaseHook {
 
     function _getCurrentMinTick() internal view returns (int24) {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+
+        if (block.timestamp < uint256(liquidityInfo_.startTime)) revert BeforeStartTime();
+
+        if (block.timestamp >= uint256(liquidityInfo_.endTime)) return liquidityInfo_.minTick;
 
         uint256 timeElapsed = block.timestamp - uint256(liquidityInfo_.startTime);
         uint256 timeTotal = uint256(liquidityInfo_.endTime) - uint256(liquidityInfo_.startTime);

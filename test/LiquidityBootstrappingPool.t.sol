@@ -189,4 +189,21 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
     }
+
+    function testGetCurrentMinTick() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            amountProvided: uint128(0),
+            startTime: uint64(100000),
+            endTime: uint64(964000), // 10 day range
+            minTick: int24(-42069),
+            maxTick: int24(42069)
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        // CASE 1: No time has passed, so the current min tick should be the max tick
+        vm.warp(100000);
+        assertEq(liquidityBootstrappingPool.getCurrentMinTick(), 42069);
+    }
 }
