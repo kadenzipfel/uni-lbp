@@ -96,4 +96,21 @@ contract LiquidityBootstrappingPool is BaseHook {
         int256 numerator = int256(timeElapsed) * int256(liquidityInfo_.maxTick - liquidityInfo_.minTick);
         return int24(int256(liquidityInfo_.maxTick) - (numerator / int256(timeTotal)));
     }
+
+    function _getTargetLiquidity() internal view returns (uint256) {
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+
+        if (block.timestamp < uint256(liquidityInfo_.startTime)) revert BeforeStartTime();
+
+        if (block.timestamp >= uint256(liquidityInfo_.endTime)) return liquidityInfo_.totalAmount;
+
+        uint256 timeElapsed = block.timestamp - uint256(liquidityInfo_.startTime);
+        uint256 timeTotal = uint256(liquidityInfo_.endTime) - uint256(liquidityInfo_.startTime);
+
+        // Get the target liquidity such that:
+        // (targetLiquidity / totalAmount) = timeElapsed / timeTotal
+        // Solving for targetLiquidity, we get:
+        // targetLiquidity = (timeElapsed / timeTotal) * totalAmount
+        return (timeElapsed * liquidityInfo_.totalAmount) / timeTotal;
+    }
 }
