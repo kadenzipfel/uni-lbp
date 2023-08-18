@@ -168,7 +168,7 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
     }
 
-    function testGetCurrentMinTick() public {
+    function testGetTargetMinTick() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
             startTime: uint32(100000),
@@ -181,22 +181,22 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         // CASE 1: No time has passed, so the current min tick should be the max tick
         vm.warp(100000);
-        assertEq(liquidityBootstrappingPool.getCurrentMinTick(), 42069);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(), 42069);
 
         // CASE 2: Half the time has passed, so the current min tick should be the average of the min and max ticks
         vm.warp(100000 + 864000 / 2);
-        assertEq(liquidityBootstrappingPool.getCurrentMinTick(), 0);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(), 0);
 
         // CASE 3: All the time has passed, so the current min tick should be the min tick
         vm.warp(100000 + 864000);
-        assertEq(liquidityBootstrappingPool.getCurrentMinTick(), -42069);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(), -42069);
 
         // CASE 4: More time has passed, so the current min tick should still be the min tick
         vm.warp(100000 + 864000 + 1000);
-        assertEq(liquidityBootstrappingPool.getCurrentMinTick(), -42069);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(), -42069);
     }
 
-    function testGetCurrentMinTickRevertsBeforeStartTime() public {
+    function testGetTargetMinTickRevertsBeforeStartTime() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
             startTime: uint32(100000),
@@ -209,12 +209,12 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         vm.warp(99999);
         vm.expectRevert(bytes4(keccak256("BeforeStartTime()")));
-        liquidityBootstrappingPool.getCurrentMinTick();
+        liquidityBootstrappingPool.getTargetMinTick();
     }
 
     // int16 ticks to ensure they're within the usable tick range
     // uint16 startTime to ensure the endTime doesn't exceed uint32.max
-    function testFuzzGetCurrentMinTick(uint16 startTime, uint16 timeRange, int16 minTick, int16 maxTick, uint8 timePassedDenominator) public {
+    function testFuzzGetTargetMinTick(uint16 startTime, uint16 timeRange, int16 minTick, int16 maxTick, uint8 timePassedDenominator) public {
         vm.assume(minTick < maxTick);
         vm.assume(timePassedDenominator > 0);
         
@@ -230,7 +230,7 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         vm.warp(block.timestamp + startTime + timeRange / timePassedDenominator);
         // Assert less than or equal to maxTick and greater than or equal to minTick
-        assertTrue(liquidityBootstrappingPool.getCurrentMinTick() < maxTick || liquidityBootstrappingPool.getCurrentMinTick() == maxTick);
-        assertTrue(liquidityBootstrappingPool.getCurrentMinTick() > minTick || liquidityBootstrappingPool.getCurrentMinTick() == minTick);
+        assertTrue(liquidityBootstrappingPool.getTargetMinTick() < maxTick || liquidityBootstrappingPool.getTargetMinTick() == maxTick);
+        assertTrue(liquidityBootstrappingPool.getTargetMinTick() > minTick || liquidityBootstrappingPool.getTargetMinTick() == minTick);
     }
 }
