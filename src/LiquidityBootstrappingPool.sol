@@ -8,7 +8,6 @@ import {PoolKey} from "@uniswap/v4-core/contracts/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/contracts/types/PoolId.sol";
 import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
 
-error InvalidAmountProvided();
 error InvalidTimeRange();
 error InvalidTickRange();
 error BeforeStartTime();
