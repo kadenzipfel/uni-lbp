@@ -24,6 +24,7 @@ contract LiquidityBootstrappingPool is BaseHook {
     }
 
     LiquidityInfo public liquidityInfo;
+    uint256 amountProvided;
 
     PoolId poolId;
 
@@ -78,6 +79,29 @@ contract LiquidityBootstrappingPool is BaseHook {
             // Liquidity bootstrapping period has not started yet,
             // allowing swapping as usual
             return LiquidityBootstrappingPool.beforeSwap.selector;
+        }
+
+        uint256 targetLiquidity = _getTargetLiquidity();
+        uint256 amountToProvide = targetLiquidity - amountProvided;
+
+        amountProvided = targetLiquidity;
+
+        (, int24 tick, , , ,) = poolManager.getSlot0(poolId);
+        int24 targetMinTick = _getTargetMinTick();
+
+        if (tick < targetMinTick) {
+            // Current tick is below target minimum tick
+            // Update liquidity range to [targetMinTick, maxTick]
+            // and provide additional liquidity according to target liquidity
+            // Note: target liquidity represents total of liquidity 
+            // provided and tokens sold, not just liquidity provided
+        } else {
+            // Current tick is above target minimum tick
+            // Sell tokens to bring tick down below target minimum tick
+            // If amount to sell is less than amount to provide, provide the remaining amount
+            // Else sell all available tokens according to target liquidity
+            // Note: target liquidity represents total of liquidity 
+            // provided and tokens sold, not just liquidity provided
         }
 
         return LiquidityBootstrappingPool.beforeSwap.selector;
