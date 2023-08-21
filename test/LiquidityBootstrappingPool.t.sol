@@ -13,6 +13,7 @@ import {Hooks} from "@uniswap/v4-core/contracts/libraries/Hooks.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/contracts/test/PoolSwapTest.sol";
 import {CurrencyLibrary, Currency} from "@uniswap/v4-core/contracts/types/Currency.sol";
 import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
+import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
 
 contract LiquidityBootstrappingPool is Test, Deployers {
     using PoolIdLibrary for PoolKey;
@@ -335,7 +336,7 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         );
     }
 
-    function testBeforeSwapOutOfRange() public {
+    function testBeforeSwapOutOfRangeSetsInitialLiquidityPosition() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
             startTime: uint32(10000),
@@ -351,5 +352,11 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         vm.prank(address(manager));
         liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+
+        // Check liquidity at expected tick range
+        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 7686, 10000);
+
+        // Assert liquidity value is proportional amount of liquidity to time passed
+        assertEq(position.liquidity, 462962962962962962962);
     }
 }
