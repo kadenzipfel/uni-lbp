@@ -9,7 +9,8 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/contracts/types/PoolId.sol
 import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
 import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import {Currency} from "@uniswap/v4-core/contracts/types/Currency.sol";
+import {Currency, CurrencyLibrary} from "@uniswap/v4-core/contracts/types/Currency.sol";
+import {BalanceDelta} from "@uniswap/v4-core/contracts/types/BalanceDelta.sol";
 
 error InvalidTimeRange();
 error InvalidTickRange();
@@ -17,6 +18,7 @@ error BeforeStartTime();
 
 contract LiquidityBootstrappingPool is BaseHook {
     using PoolIdLibrary for PoolKey;
+    using CurrencyLibrary for Currency;
 
     struct LiquidityInfo {
         uint128 totalAmount; // The total amount of liquidity to provide
@@ -25,6 +27,11 @@ contract LiquidityBootstrappingPool is BaseHook {
         int24 minTick; // The minimum tick to provide liquidity at
         int24 maxTick; // The maximum tick to provide liquidity at
         bool isToken0; // Whether the token to provide liquidity for is token0
+    }
+
+    struct ModifyPositionCallback {
+        PoolKey key;
+        IPoolManager.ModifyPositionParams params;
     }
 
     LiquidityInfo public liquidityInfo;
@@ -113,11 +120,11 @@ contract LiquidityBootstrappingPool is BaseHook {
 
             // Close current position
             if (position.liquidity > 0) {
-                poolManager.modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))), bytes(""));
+                _modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))));
             }
 
             // Open new position
-            poolManager.modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)), bytes(""));
+            _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)));
 
             // Update liquidity range
             currentMinTick = targetMinTick;
@@ -169,5 +176,55 @@ contract LiquidityBootstrappingPool is BaseHook {
         // Solving for targetLiquidity, we get:
         // targetLiquidity = (timeElapsed / timeTotal) * totalAmount
         return (timeElapsed * liquidityInfo_.totalAmount) / timeTotal;
+    }
+
+    function _modifyPosition(PoolKey calldata key, IPoolManager.ModifyPositionParams memory params)
+        internal
+        returns (BalanceDelta delta)
+    {
+        delta = abi.decode(poolManager.lock(abi.encode(IPoolManager.modifyPosition.selector, key, params)), (BalanceDelta));
+    }
+
+    function _takeDeltas(PoolKey memory key, BalanceDelta delta) internal {
+        poolManager.take(key.currency0, address(this), uint256(uint128(-delta.amount0())));
+        poolManager.take(key.currency1, address(this), uint256(uint128(-delta.amount1())));
+    }
+
+    function _settleDeltas(PoolKey memory key, BalanceDelta delta) internal {
+        uint256 delta0 = uint256(uint128(delta.amount0()));
+        uint256 delta1 = uint256(uint128(delta.amount1()));
+
+        if (delta0 > 0) {
+            key.currency0.transfer(address(poolManager), uint256(uint128(delta.amount0())));
+            poolManager.settle(key.currency0);
+        }
+
+        if (delta1 > 0) {
+            key.currency1.transfer(address(poolManager), uint256(uint128(delta.amount1())));
+            poolManager.settle(key.currency1);
+        }
+    }
+
+    function lockAcquired(bytes calldata data) external override poolManagerOnly returns (bytes memory) {
+        bytes4 selector = abi.decode(data[:32], (bytes4));
+
+        if (selector == IPoolManager.modifyPosition.selector) {
+            ModifyPositionCallback memory callback = abi.decode(data[32:], (ModifyPositionCallback));
+
+            BalanceDelta delta = poolManager.modifyPosition(callback.key, callback.params, bytes(""));
+
+            if (callback.params.liquidityDelta < 0) {
+                // Removing liquidity, take tokens from the poolManager
+                _takeDeltas(callback.key, delta);
+            } else {
+                // Adding liquidity, settle tokens to the poolManager
+                _settleDeltas(callback.key, delta);
+            }
+
+            return abi.encode(delta);
+        }
+        // TODO: Support swap selector
+
+        return bytes("");
     }
 }
