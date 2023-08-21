@@ -8,6 +8,8 @@ import {PoolKey} from "@uniswap/v4-core/contracts/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/contracts/types/PoolId.sol";
 import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
 import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Currency} from "@uniswap/v4-core/contracts/types/Currency.sol";
 
 error InvalidTimeRange();
 error InvalidTickRange();
@@ -22,6 +24,7 @@ contract LiquidityBootstrappingPool is BaseHook {
         uint32 endTime; // End time of the liquidity bootstrapping period
         int24 minTick; // The minimum tick to provide liquidity at
         int24 maxTick; // The maximum tick to provide liquidity at
+        bool isToken0; // Whether the token to provide liquidity for is token0
     }
 
     LiquidityInfo public liquidityInfo;
@@ -45,7 +48,7 @@ contract LiquidityBootstrappingPool is BaseHook {
         });
     }
 
-    function afterInitialize(address, PoolKey calldata key, uint160, int24, bytes calldata data)
+    function afterInitialize(address sender, PoolKey calldata key, uint160, int24, bytes calldata data)
         external
         override
         poolManagerOnly
@@ -66,6 +69,13 @@ contract LiquidityBootstrappingPool is BaseHook {
         currentMinTick = liquidityInfo_.minTick;
 
         poolId = key.toId();
+
+        // Transfer bootstrapping token to this contract
+        if (liquidityInfo_.isToken0) {
+            ERC20(Currency.unwrap(key.currency0)).transferFrom(sender, address(this), liquidityInfo_.totalAmount);
+        } else {
+            ERC20(Currency.unwrap(key.currency1)).transferFrom(sender, address(this), liquidityInfo_.totalAmount);
+        } 
 
         return LiquidityBootstrappingPool.afterInitialize.selector;
     }

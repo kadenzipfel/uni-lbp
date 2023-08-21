@@ -36,6 +36,7 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         uint32 endTime; // End time of the liquidity bootstrapping period
         int24 minTick; // The minimum tick to provide liquidity at
         int24 maxTick; // The maximum tick to provide liquidity at
+        bool isToken0; // Whether the token to provide liquidity for is token0
     }
 
     function setUp() public {
@@ -77,18 +78,19 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         token1.approve(address(swapRouter), type(uint256).max);
     }
 
-    function testAfterInitializeSetsStorage() public {
+    function testAfterInitializeSetsStorageAndTransfersTokens() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
             startTime: uint32(block.timestamp),
             endTime: uint32(block.timestamp + 86400),
             minTick: int24(0),
-            maxTick: int24(1000)
+            maxTick: int24(1000),
+            isToken0: true
         });
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-        (uint128 totalAmount, uint32 startTime, uint32 endTime, int24 minTick, int24 maxTick) =
+        (uint128 totalAmount, uint32 startTime, uint32 endTime, int24 minTick, int24 maxTick, bool isToken0) =
             liquidityBootstrappingPool.liquidityInfo();
 
         assertEq(totalAmount, liquidityInfo.totalAmount);
@@ -96,6 +98,9 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         assertEq(endTime, liquidityInfo.endTime);
         assertEq(minTick, liquidityInfo.minTick);
         assertEq(maxTick, liquidityInfo.maxTick);
+        assertEq(isToken0, liquidityInfo.isToken0);
+
+        assertEq(token0.balanceOf(address(liquidityBootstrappingPool)), liquidityInfo.totalAmount);
     }
 
     function testAfterInitializeRevertsInvalidTimeRange() public {
@@ -105,7 +110,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(block.timestamp + 86400),
             endTime: uint32(block.timestamp),
             minTick: int24(0),
-            maxTick: int24(1000)
+            maxTick: int24(1000),
+            isToken0: true
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTimeRange()")));
@@ -119,7 +125,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(998),
             endTime: uint32(999),
             minTick: int24(0),
-            maxTick: int24(1000)
+            maxTick: int24(1000),
+            isToken0: true
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTimeRange()")));
@@ -133,7 +140,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(block.timestamp),
             endTime: uint32(block.timestamp + 86400),
             minTick: int24(1000),
-            maxTick: int24(0)
+            maxTick: int24(0),
+            isToken0: true
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
@@ -147,7 +155,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(block.timestamp),
             endTime: uint32(block.timestamp + 86400),
             minTick: int24(minUsableTick - 1),
-            maxTick: int24(0)
+            maxTick: int24(0),
+            isToken0: true
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
@@ -161,7 +170,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(block.timestamp),
             endTime: uint32(block.timestamp + 86400),
             minTick: int24(0),
-            maxTick: int24(maxUsableTick + 1)
+            maxTick: int24(maxUsableTick + 1),
+            isToken0: true
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
@@ -174,7 +184,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(100000),
             endTime: uint32(100000 + 864000), // 10 day range
             minTick: int24(-42069),
-            maxTick: int24(42069)
+            maxTick: int24(42069),
+            isToken0: true
         });
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
@@ -202,7 +213,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(100000),
             endTime: uint32(100000 + 864000), // 10 day range
             minTick: int24(-42069),
-            maxTick: int24(42069)
+            maxTick: int24(42069),
+            isToken0: true
         });
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
@@ -229,7 +241,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(block.timestamp + startTime),
             endTime: uint32(block.timestamp + startTime + timeRange),
             minTick: int24(minTick),
-            maxTick: int24(maxTick)
+            maxTick: int24(maxTick),
+            isToken0: true
         });
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
@@ -252,7 +265,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(100000),
             endTime: uint32(100000 + 864000), // 10 day range
             minTick: int24(-42069),
-            maxTick: int24(42069)
+            maxTick: int24(42069),
+            isToken0: true
         });
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
@@ -280,7 +294,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(100000),
             endTime: uint32(100000 + 864000), // 10 day range
             minTick: int24(-42069),
-            maxTick: int24(42069)
+            maxTick: int24(42069),
+            isToken0: true
         });
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
@@ -306,7 +321,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             startTime: uint32(block.timestamp + startTime),
             endTime: uint32(block.timestamp + startTime + timeRange),
             minTick: int24(minTick),
-            maxTick: int24(maxTick)
+            maxTick: int24(maxTick),
+            isToken0: true
         });
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
