@@ -7,6 +7,7 @@ import {IPoolManager} from "@uniswap/v4-core/contracts/interfaces/IPoolManager.s
 import {PoolKey} from "@uniswap/v4-core/contracts/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/contracts/types/PoolId.sol";
 import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
+import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
 
 error InvalidTimeRange();
 error InvalidTickRange();
@@ -25,6 +26,7 @@ contract LiquidityBootstrappingPool is BaseHook {
 
     LiquidityInfo public liquidityInfo;
     uint256 amountProvided;
+    int24 currentMinTick;
 
     PoolId poolId;
 
@@ -61,13 +63,14 @@ contract LiquidityBootstrappingPool is BaseHook {
         ) revert InvalidTickRange();
 
         liquidityInfo = liquidityInfo_;
+        currentMinTick = liquidityInfo_.minTick;
 
         poolId = key.toId();
 
         return LiquidityBootstrappingPool.afterInitialize.selector;
     }
 
-    function beforeSwap(address, PoolKey calldata, IPoolManager.SwapParams calldata, bytes calldata)
+    function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
         poolManagerOnly
@@ -89,10 +92,23 @@ contract LiquidityBootstrappingPool is BaseHook {
         (, int24 tick, , , ,) = poolManager.getSlot0(poolId);
         int24 targetMinTick = _getTargetMinTick();
 
+        int24 currentMinTick_ = currentMinTick;
+
         if (tick < targetMinTick) {
             // Current tick is below target minimum tick
             // Update liquidity range to [targetMinTick, maxTick]
             // and provide additional liquidity according to target liquidity
+            Position.Info memory position = poolManager.getPosition(poolId, address(this), currentMinTick_, liquidityInfo_.maxTick);
+            uint256 newLiquidity = uint256(position.liquidity) + amountToProvide;
+
+            // Close current position
+            poolManager.modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))), bytes(""));
+
+            // Open new position
+            poolManager.modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)), bytes(""));
+
+            // Update liquidity range
+            currentMinTick = targetMinTick;
         } else {
             // Current tick is above target minimum tick
             // Sell tokens to bring tick down below target minimum tick
