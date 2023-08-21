@@ -336,27 +336,55 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         );
     }
 
-    function testBeforeSwapOutOfRangeSetsInitialLiquidityPosition() public {
+    function testBeforeSwapOutOfRangeSetsLiquidityPosition() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
             startTime: uint32(10000),
             endTime: uint32(10000 + 86400),
-            minTick: int24(5000),
-            maxTick: int24(10000),
+            minTick: int24(10000),
+            maxTick: int24(20000),
             isToken0: true
         });
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
+
+        // CASE 1: Before start time, doesn't add liquidity
+        vm.warp(9999);
+
+        vm.prank(address(manager));
+        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+
+        assertEq(manager.getLiquidity(id), 0);
+
+
+        // CASE 2: Part way through, adds correct amount of liquidity at correct range
         vm.warp(50000);
 
         vm.prank(address(manager));
         liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         // Check liquidity at expected tick range
-        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 7686, 10000);
+        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 15371, 20000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed
         assertEq(position.liquidity, 462962962962962962962);
+
+
+        // CASE 3: At end time, adds all liquidity at full range
+        vm.warp(10000 + 86400);
+
+        vm.prank(address(manager));
+        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+
+        // Check liquidity at full tick range
+        position = manager.getPosition(id, address(liquidityBootstrappingPool), 10000, 20000);
+
+        // Assert liquidity value at new position is total amount of liquidity
+        assertEq(position.liquidity, 1000e18);
+
+        // Assert no liquidity at old position
+        position = manager.getPosition(id, address(liquidityBootstrappingPool), 15371, 20000);
+        assertEq(position.liquidity, 0);
     }
 }
