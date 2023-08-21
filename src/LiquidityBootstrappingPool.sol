@@ -75,7 +75,7 @@ contract LiquidityBootstrappingPool is BaseHook {
             ERC20(Currency.unwrap(key.currency0)).transferFrom(sender, address(this), liquidityInfo_.totalAmount);
         } else {
             ERC20(Currency.unwrap(key.currency1)).transferFrom(sender, address(this), liquidityInfo_.totalAmount);
-        } 
+        }
 
         return LiquidityBootstrappingPool.afterInitialize.selector;
     }
@@ -112,7 +112,9 @@ contract LiquidityBootstrappingPool is BaseHook {
             uint256 newLiquidity = uint256(position.liquidity) + amountToProvide;
 
             // Close current position
-            poolManager.modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))), bytes(""));
+            if (position.liquidity > 0) {
+                poolManager.modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))), bytes(""));
+            }
 
             // Open new position
             poolManager.modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)), bytes(""));

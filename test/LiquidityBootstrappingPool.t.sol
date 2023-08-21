@@ -17,7 +17,7 @@ import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
 contract LiquidityBootstrappingPool is Test, Deployers {
     using PoolIdLibrary for PoolKey;
 
-    int24 constant MAX_TICK_SPACING = 32767;
+    int24 constant MIN_TICK_SPACING = 1;
     uint160 constant SQRT_RATIO_2_1 = 112045541949572279837463876454;
 
     TestERC20 token0;
@@ -65,7 +65,7 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             Currency.wrap(address(token0)),
             Currency.wrap(address(token1)),
             0,
-            MAX_TICK_SPACING,
+            MIN_TICK_SPACING,
             liquidityBootstrappingPool
         );
         id = key.toId();
@@ -148,7 +148,7 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
         // CASE 2: minTick < minUsableTick
-        int24 minUsableTick = TickMath.minUsableTick(MAX_TICK_SPACING);
+        int24 minUsableTick = TickMath.minUsableTick(MIN_TICK_SPACING);
 
         liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
@@ -163,7 +163,7 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
         // CASE 3: maxTick > maxUsableTick
-        int24 maxUsableTick = TickMath.maxUsableTick(MAX_TICK_SPACING);
+        int24 maxUsableTick = TickMath.maxUsableTick(MIN_TICK_SPACING);
 
         liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
@@ -333,5 +333,23 @@ contract LiquidityBootstrappingPool is Test, Deployers {
             liquidityBootstrappingPool.getTargetLiquidity() < totalAmount
                 || liquidityBootstrappingPool.getTargetLiquidity() == totalAmount
         );
+    }
+
+    function testBeforeSwapOutOfRange() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            startTime: uint32(10000),
+            endTime: uint32(10000 + 86400),
+            minTick: int24(5000),
+            maxTick: int24(10000),
+            isToken0: true
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        vm.warp(50000);
+
+        vm.prank(address(manager));
+        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
     }
 }
