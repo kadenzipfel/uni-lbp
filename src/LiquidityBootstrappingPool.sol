@@ -93,15 +93,11 @@ contract LiquidityBootstrappingPool is BaseHook {
             // Current tick is below target minimum tick
             // Update liquidity range to [targetMinTick, maxTick]
             // and provide additional liquidity according to target liquidity
-            // Note: target liquidity represents total of liquidity 
-            // provided and tokens sold, not just liquidity provided
         } else {
             // Current tick is above target minimum tick
             // Sell tokens to bring tick down below target minimum tick
             // If amount to sell is less than amount to provide, provide the remaining amount
             // Else sell all available tokens according to target liquidity
-            // Note: target liquidity represents total of liquidity 
-            // provided and tokens sold, not just liquidity provided
         }
 
         return LiquidityBootstrappingPool.beforeSwap.selector;
@@ -128,6 +124,8 @@ contract LiquidityBootstrappingPool is BaseHook {
         return int24(int256(liquidityInfo_.maxTick) - (numerator / int256(timeTotal)));
     }
 
+    // Note: target liquidity represents total of intended liquidity 
+    // provided plus tokens sold, not just liquidity provided
     function _getTargetLiquidity() internal view returns (uint256) {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
