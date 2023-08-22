@@ -358,7 +358,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 15741, 20000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed
-        assertEq(position.liquidity, 425925925925925925925);
+        assertEq(position.liquidity, 4878558521669597624372);
 
 
         // CASE 3: At end time, adds all liquidity at full range
@@ -371,7 +371,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         position = manager.getPosition(id, address(liquidityBootstrappingPool), 10000, 20000);
 
         // Assert liquidity value at new position is total amount of liquidity
-        assertEq(position.liquidity, 1000e18);
+        assertEq(position.liquidity, 4190272079389499705764);
 
         // Assert no liquidity at old position
         position = manager.getPosition(id, address(liquidityBootstrappingPool), 15741, 20000);
@@ -414,7 +414,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 2871, 5000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed
-        assertEq(position.liquidity, 425925925925925925925);
+        assertEq(position.liquidity, 4869217071209495223347);
 
 
         // CASE 2: Time has passed, tick back in range, swaps out of range and adds liquidity with remaining amount
@@ -440,7 +440,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         position = manager.getPosition(id, address(liquidityBootstrappingPool), 2246, 5000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed - amount swapped
-        assertEq(position.liquidity, 550925925925925925925);
+        assertEq(position.liquidity, 4791885898590874707175);
     }
 
     function testExit() public {
@@ -471,7 +471,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         // Get balance after exit
         uint256 balanceAfter = token0.balanceOf(address(this));
 
-        // Assert is the same since no swaps occured
-        assertEq(balanceBefore, balanceAfter);
+        // Assert balance is the same since no swaps occured
+        assertEq(balanceBefore / 10, balanceAfter / 10); // Acceptable amount of precision loss (< 10 wei)
     }
 }

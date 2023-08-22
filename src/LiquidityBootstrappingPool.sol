@@ -12,6 +12,8 @@ import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/contracts/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/contracts/types/BalanceDelta.sol";
 import {Owned} from "@solmate/auth/Owned.sol";
+// TODO: Import from v4-periphery once it's merged
+import {LiquidityAmounts} from "./lib/LiquidityAmounts.sol";
 
 error InvalidTimeRange();
 error InvalidTickRange();
@@ -143,15 +145,18 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
             // Update liquidity range to [targetMinTick, maxTick]
             // and provide additional liquidity according to target liquidity
             Position.Info memory position = poolManager.getPosition(poolId, address(this), currentMinTick_, liquidityInfo_.maxTick);
-            uint256 newLiquidity = uint256(position.liquidity) + amountToProvide;
+            uint256 newLiquidity = _getTokenAmount(currentMinTick_, liquidityInfo_.maxTick, position.liquidity, liquidityInfo_.isToken0) + amountToProvide;
 
             // Close current position
             if (position.liquidity > 0) {
                 _modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))), false);
             }
 
+            // Get liquidity amount for new position
+            int256 liquidity = _getLiquidityAmount(targetMinTick, liquidityInfo_.maxTick, newLiquidity, liquidityInfo_.isToken0);
+
             // Open new position
-            _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)), false);
+            _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, liquidity), false);
 
             // Update liquidity range
             currentMinTick = targetMinTick;
@@ -177,15 +182,18 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
                 // Update liquidity range to [targetMinTick, maxTick]
                 // and provide additional liquidity according to target liquidity
                 Position.Info memory position = poolManager.getPosition(poolId, address(this), currentMinTick_, liquidityInfo_.maxTick);
-                uint256 newLiquidity = uint256(position.liquidity) + (amountToProvide - amountSwapped);
+                uint256 newLiquidity = _getTokenAmount(currentMinTick_, liquidityInfo_.maxTick, position.liquidity, liquidityInfo_.isToken0) + (amountToProvide - amountSwapped);
 
                 // Close current position
                 if (position.liquidity > 0) {
                     _modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))), false);
                 }
 
+                // Get liquidity amount for new position
+                int256 liquidity = _getLiquidityAmount(targetMinTick, liquidityInfo_.maxTick, newLiquidity, liquidityInfo_.isToken0);
+
                 // Open new position
-                _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)), false);
+                _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, liquidity), false);
 
                 // Update liquidity range
                 currentMinTick = targetMinTick;
@@ -254,6 +262,28 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         // Solving for targetLiquidity, we get:
         // targetLiquidity = (timeElapsed / timeTotal) * totalAmount
         return (timeElapsed * liquidityInfo_.totalAmount) / timeTotal;
+    }
+
+    function _getLiquidityAmount(int24 tickLower, int24 tickUpper, uint256 tokenLiquidity, bool isToken0) internal pure returns (int256 liquidity) {
+        uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
+        uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(tickUpper);
+
+        if (isToken0) {
+            liquidity = int256(uint256(LiquidityAmounts.getLiquidityForAmount0(sqrtRatioAX96, sqrtRatioBX96, tokenLiquidity)));
+        } else {
+            liquidity = int256(uint256(LiquidityAmounts.getLiquidityForAmount1(sqrtRatioAX96, sqrtRatioBX96, tokenLiquidity)));
+        }
+    }
+
+    function _getTokenAmount(int24 tickLower, int24 tickUpper, uint128 liquidity, bool isToken0) internal pure returns (uint256 tokenAmount) {
+        uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
+        uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(tickUpper);
+
+        if (isToken0) {
+            tokenAmount = LiquidityAmounts.getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, liquidity);
+        } else {
+            tokenAmount = LiquidityAmounts.getAmount1ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, liquidity);
+        }
     }
 
     function _getTokenBalance(PoolKey calldata key) internal view returns (uint256) {
