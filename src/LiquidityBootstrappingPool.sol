@@ -277,7 +277,7 @@ contract LiquidityBootstrappingPool is BaseHook {
         }
     }
 
-    function _floorToEpoch(uint256 timestamp) internal view returns (uint256) {
+    function _floorToEpoch(uint256 timestamp) internal pure returns (uint256) {
         return (timestamp / EPOCH_SIZE) * EPOCH_SIZE;
     }
 
