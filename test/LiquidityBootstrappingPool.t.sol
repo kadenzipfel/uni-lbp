@@ -387,4 +387,69 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         position = manager.getPosition(id, address(liquidityBootstrappingPool), 15371, 20000);
         assertEq(position.liquidity, 0);
     }
+
+    function testBeforeSwapInRangeSwapsAndSetsLiquidity() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            startTime: uint32(10000),
+            endTime: uint32(10000 + 86400),
+            minTick: int24(0),
+            maxTick: int24(5000),
+            isToken0: true
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+
+        // CASE 1: Tick is in range, swaps out of range and adds liquidity with remaining amount
+
+        vm.warp(50000);
+
+        // Get tick before swap
+        (, int24 beforeTick, , , ,) = manager.getSlot0(id);
+
+        vm.prank(address(manager));
+        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+
+        // Get tick after swap
+        (, int24 afterTick, , , ,) = manager.getSlot0(id);
+
+        // Assert tick has lowered
+        assertTrue(afterTick < beforeTick);
+
+        // Assert expected tick
+        assertEq(afterTick, 2685);
+
+        // Check liquidity at expected tick range
+        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 2686, 5000);
+
+        // Assert liquidity value is proportional amount of liquidity to time passed
+        assertEq(position.liquidity, 462962962962962962962);
+
+
+        // CASE 2: Time has passed, tick back in range, swaps out of range and adds liquidity with remaining amount
+
+        vm.warp(60000);
+
+        // Get tick before swap
+        (, beforeTick, , , ,) = manager.getSlot0(id);
+
+        vm.prank(address(manager));
+        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+
+        // Get tick after swap
+        (, afterTick, , , ,) = manager.getSlot0(id);
+
+        // Assert tick has lowered
+        assertTrue(afterTick < beforeTick);
+
+        // Assert expected tick
+        assertEq(afterTick, 2106);
+
+        // Check liquidity at expected tick range
+        position = manager.getPosition(id, address(liquidityBootstrappingPool), 2107, 5000);
+
+        // Assert liquidity value is proportional amount of liquidity to time passed - amount swapped
+        assertEq(position.liquidity, 578703703703703703703);
+    }
 }
