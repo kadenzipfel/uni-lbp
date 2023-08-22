@@ -106,9 +106,9 @@ contract LiquidityBootstrappingPool is BaseHook {
     {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
-        if (liquidityInfo_.startTime > block.timestamp || allowSwap) {
+        if (liquidityInfo_.startTime > block.timestamp) {
             // Liquidity bootstrapping period has not started yet,
-            // or allowSwap is true, allow swapping as usual
+            // allow swapping as usual
             return LiquidityBootstrappingPool.beforeSwap.selector;
         }
 
@@ -118,18 +118,20 @@ contract LiquidityBootstrappingPool is BaseHook {
     }
 
     function sync(PoolKey calldata key, LiquidityInfo memory liquidityInfo_) public {
-        if (epochSynced[_floorToEpoch(block.timestamp)]) {
-            // Already synced for this epoch
+        uint256 timestamp = _floorToEpoch(block.timestamp);
+
+        if (allowSwap || epochSynced[timestamp]) {
+            // Already synced for this epoch or syncing is disabled
             return;
         }
 
-        uint256 targetLiquidity = _getTargetLiquidity();
+        uint256 targetLiquidity = _getTargetLiquidity(timestamp);
         uint256 amountToProvide = targetLiquidity - amountProvided;
 
         amountProvided = targetLiquidity;
 
         (, int24 tick, , , ,) = poolManager.getSlot0(poolId);
-        int24 targetMinTick = _getTargetMinTick();
+        int24 targetMinTick = _getTargetMinTick(timestamp);
 
         int24 currentMinTick_ = currentMinTick;
 
@@ -187,17 +189,17 @@ contract LiquidityBootstrappingPool is BaseHook {
             }
         }
 
-        epochSynced[_floorToEpoch(block.timestamp)] = true;
+        epochSynced[timestamp] = true;
     }
 
-    function _getTargetMinTick() internal view returns (int24) {
+    function _getTargetMinTick(uint256 timestamp) internal view returns (int24) {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
-        if (block.timestamp < uint256(liquidityInfo_.startTime)) revert BeforeStartTime();
+        if (timestamp < uint256(liquidityInfo_.startTime)) revert BeforeStartTime();
 
-        if (block.timestamp >= uint256(liquidityInfo_.endTime)) return liquidityInfo_.minTick;
+        if (timestamp >= uint256(liquidityInfo_.endTime)) return liquidityInfo_.minTick;
 
-        uint256 timeElapsed = block.timestamp - uint256(liquidityInfo_.startTime);
+        uint256 timeElapsed = timestamp - uint256(liquidityInfo_.startTime);
         uint256 timeTotal = uint256(liquidityInfo_.endTime) - uint256(liquidityInfo_.startTime);
 
         // Get the target minimum tick of the liquidity range such that:
@@ -213,14 +215,14 @@ contract LiquidityBootstrappingPool is BaseHook {
 
     // Note: target liquidity represents total of intended liquidity 
     // provided plus tokens sold, not just liquidity provided
-    function _getTargetLiquidity() internal view returns (uint256) {
+    function _getTargetLiquidity(uint256 timestamp) internal view returns (uint256) {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
-        if (block.timestamp < uint256(liquidityInfo_.startTime)) revert BeforeStartTime();
+        if (timestamp < uint256(liquidityInfo_.startTime)) revert BeforeStartTime();
 
-        if (block.timestamp >= uint256(liquidityInfo_.endTime)) return liquidityInfo_.totalAmount;
+        if (timestamp >= uint256(liquidityInfo_.endTime)) return liquidityInfo_.totalAmount;
 
-        uint256 timeElapsed = block.timestamp - uint256(liquidityInfo_.startTime);
+        uint256 timeElapsed = timestamp - uint256(liquidityInfo_.startTime);
         uint256 timeTotal = uint256(liquidityInfo_.endTime) - uint256(liquidityInfo_.startTime);
 
         // Get the target liquidity such that:

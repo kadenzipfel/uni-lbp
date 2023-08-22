@@ -192,20 +192,16 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
         // CASE 1: No time has passed, so the target min tick should be the max tick
-        vm.warp(100000);
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(), 42069);
+        liquidityBootstrappingPool.getTargetMinTick(100000);
 
         // CASE 2: Half the time has passed, so the target min tick should be the average of the min and max ticks
-        vm.warp(100000 + 864000 / 2);
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(), 0);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(100000 + 864000 / 2), 0);
 
         // CASE 3: All the time has passed, so the target min tick should be the min tick
-        vm.warp(100000 + 864000);
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(), -42069);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(100000 + 864000), -42069);
 
         // CASE 4: More time has passed, so the target min tick should still be the min tick
-        vm.warp(100000 + 864000 + 1000);
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(), -42069);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(100000 + 864000 + 1000), -42069);
     }
 
     function testGetTargetMinTickRevertsBeforeStartTime() public {
@@ -220,9 +216,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-        vm.warp(99999);
         vm.expectRevert(bytes4(keccak256("BeforeStartTime()")));
-        liquidityBootstrappingPool.getTargetMinTick();
+        liquidityBootstrappingPool.getTargetMinTick(99999);
     }
 
     // int16 ticks to ensure they're within the usable tick range
@@ -248,15 +243,15 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-        vm.warp(block.timestamp + startTime + timeRange / timePassedDenominator);
         // Assert less than or equal to maxTick and greater than or equal to minTick
+        int24 targetMinTick = liquidityBootstrappingPool.getTargetMinTick(block.timestamp + startTime + timeRange / timePassedDenominator);
         assertTrue(
-            liquidityBootstrappingPool.getTargetMinTick() < maxTick
-                || liquidityBootstrappingPool.getTargetMinTick() == maxTick
+            targetMinTick < maxTick
+                || targetMinTick == maxTick
         );
         assertTrue(
-            liquidityBootstrappingPool.getTargetMinTick() > minTick
-                || liquidityBootstrappingPool.getTargetMinTick() == minTick
+            targetMinTick > minTick
+                || targetMinTick == minTick
         );
     }
 
@@ -273,20 +268,16 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
         // CASE 1: No time has passed, so the target liquidity should be 0
-        vm.warp(100000);
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(), 0);
+        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000), 0);
 
         // CASE 2: Half the time has passed, so the target liquidity should be half the total amount
-        vm.warp(100000 + 864000 / 2);
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(), 210345e17);
+        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000 + 864000 / 2), 210345e17);
 
         // CASE 3: All the time has passed, so the target liquidity should be the total amount
-        vm.warp(100000 + 864000);
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(), 42069e18);
+        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000 + 864000), 42069e18);
 
         // CASE 4: More time has passed, so the target liquidity should still be the total amount
-        vm.warp(100000 + 864000 + 3600);
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(), 42069e18);
+        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000 + 864000 + 3600), 42069e18);
     }
 
     function testGetTargetLiquidityRevertsBeforeStartTime() public {
@@ -301,9 +292,8 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-        vm.warp(99999);
         vm.expectRevert(bytes4(keccak256("BeforeStartTime()")));
-        liquidityBootstrappingPool.getTargetLiquidity();
+        liquidityBootstrappingPool.getTargetLiquidity(99999);
     }
 
     function testFuzzGetTargetLiquidity(
@@ -328,11 +318,11 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-        vm.warp(block.timestamp + startTime + timeRange / timePassedDenominator);
+        uint256 targetLiquidity = liquidityBootstrappingPool.getTargetLiquidity(block.timestamp + startTime + timeRange / timePassedDenominator);
         // Assert less than or equal to target amount
         assertTrue(
-            liquidityBootstrappingPool.getTargetLiquidity() < totalAmount
-                || liquidityBootstrappingPool.getTargetLiquidity() == totalAmount
+            targetLiquidity < totalAmount
+                || targetLiquidity == totalAmount
         );
     }
 
@@ -365,14 +355,14 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         // Check liquidity at expected tick range
-        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 15371, 20000);
+        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 15741, 20000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed
-        assertEq(position.liquidity, 462962962962962962962);
+        assertEq(position.liquidity, 425925925925925925925);
 
 
         // CASE 3: At end time, adds all liquidity at full range
-        vm.warp(10000 + 86400);
+        vm.warp(10000 + 86400 + 3600);
 
         vm.prank(address(manager));
         liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
@@ -384,7 +374,7 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         assertEq(position.liquidity, 1000e18);
 
         // Assert no liquidity at old position
-        position = manager.getPosition(id, address(liquidityBootstrappingPool), 15371, 20000);
+        position = manager.getPosition(id, address(liquidityBootstrappingPool), 15741, 20000);
         assertEq(position.liquidity, 0);
     }
 
@@ -418,13 +408,13 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         assertTrue(afterTick < beforeTick);
 
         // Assert expected tick
-        assertEq(afterTick, 2685);
+        assertEq(afterTick, 2870);
 
         // Check liquidity at expected tick range
-        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 2686, 5000);
+        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 2871, 5000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed
-        assertEq(position.liquidity, 462962962962962962962);
+        assertEq(position.liquidity, 425925925925925925925);
 
 
         // CASE 2: Time has passed, tick back in range, swaps out of range and adds liquidity with remaining amount
@@ -444,12 +434,12 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         assertTrue(afterTick < beforeTick);
 
         // Assert expected tick
-        assertEq(afterTick, 2106);
+        assertEq(afterTick, 2245);
 
         // Check liquidity at expected tick range
-        position = manager.getPosition(id, address(liquidityBootstrappingPool), 2107, 5000);
+        position = manager.getPosition(id, address(liquidityBootstrappingPool), 2246, 5000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed - amount swapped
-        assertEq(position.liquidity, 578703703703703703703);
+        assertEq(position.liquidity, 550925925925925925925);
     }
 }

@@ -16,11 +16,11 @@ contract LiquidityBootstrappingPoolImplementation is LiquidityBootstrappingPool 
     // make this a no-op in testing
     function validateHookAddress(BaseHook _this) internal pure override {}
 
-    function getTargetMinTick() public view returns (int24) {
-        return _getTargetMinTick();
+    function getTargetMinTick(uint256 timestamp) public view returns (int24) {
+        return _getTargetMinTick(timestamp);
     }
 
-    function getTargetLiquidity() public view returns (uint256) {
-        return _getTargetLiquidity();
+    function getTargetLiquidity(uint256 timestamp) public view returns (uint256) {
+        return _getTargetLiquidity(timestamp);
     }
 }
