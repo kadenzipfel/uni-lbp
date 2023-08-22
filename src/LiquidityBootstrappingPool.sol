@@ -39,7 +39,12 @@ contract LiquidityBootstrappingPool is BaseHook {
         IPoolManager.SwapParams params;
     }
 
+    uint256 constant EPOCH_SIZE = 1 hours;
+
+    mapping(uint256 => bool) epochSynced;
+
     LiquidityInfo public liquidityInfo;
+
     uint256 amountProvided;
     int24 currentMinTick;
     bool allowSwap;
@@ -259,6 +264,10 @@ contract LiquidityBootstrappingPool is BaseHook {
             key.currency1.transfer(address(poolManager), uint256(uint128(delta.amount1())));
             poolManager.settle(key.currency1);
         }
+    }
+
+    function _floorToEpoch(uint256 timestamp) internal view returns (uint256) {
+        return (timestamp / EPOCH_SIZE) * EPOCH_SIZE;
     }
 
     function lockAcquired(bytes calldata data) external override poolManagerOnly returns (bytes memory) {
