@@ -107,26 +107,26 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         poolManagerOnly
         returns (bytes4)
     {
-        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
-
-        if (liquidityInfo_.startTime > block.timestamp) {
+        if (liquidityInfo.startTime > block.timestamp) {
             // Liquidity bootstrapping period has not started yet,
             // allow swapping as usual
             return LiquidityBootstrappingPool.beforeSwap.selector;
         }
 
-        sync(key, liquidityInfo_);
+        sync(key);
 
         return LiquidityBootstrappingPool.beforeSwap.selector;
     }
 
-    function sync(PoolKey calldata key, LiquidityInfo memory liquidityInfo_) public {
+    function sync(PoolKey calldata key) public {
         uint256 timestamp = _floorToEpoch(block.timestamp);
 
         if (allowSwap || epochSynced[timestamp]) {
             // Already synced for this epoch or syncing is disabled
             return;
         }
+
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
         uint256 targetLiquidity = _getTargetLiquidity(timestamp);
         uint256 amountToProvide = targetLiquidity - amountProvided;
