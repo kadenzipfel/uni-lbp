@@ -16,6 +16,7 @@ import {Owned} from "@solmate/auth/Owned.sol";
 error InvalidTimeRange();
 error InvalidTickRange();
 error BeforeStartTime();
+error BeforeEndTime();
 
 contract LiquidityBootstrappingPool is BaseHook, Owned {
     using PoolIdLibrary for PoolKey;
@@ -33,6 +34,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
     struct ModifyPositionCallback {
         PoolKey key;
         IPoolManager.ModifyPositionParams params;
+        bool takeToOwner;
     }
 
     struct SwapCallback {
@@ -145,11 +147,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
 
             // Close current position
             if (position.liquidity > 0) {
-                _modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))));
+                _modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))), false);
             }
 
             // Open new position
-            _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)));
+            _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)), false);
 
             // Update liquidity range
             currentMinTick = targetMinTick;
@@ -179,11 +181,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
 
                 // Close current position
                 if (position.liquidity > 0) {
-                    _modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))));
+                    _modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))), false);
                 }
 
                 // Open new position
-                _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)));
+                _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)), false);
 
                 // Update liquidity range
                 currentMinTick = targetMinTick;
@@ -193,8 +195,24 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         epochSynced[timestamp] = true;
     }
 
-    function exit() external onlyOwner {
-        
+    function exit(PoolKey calldata key) external onlyOwner {
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+
+        if (_floorToEpoch(block.timestamp) < uint256(liquidityInfo_.endTime)) {
+            // Liquidity bootstrapping period has not ended yet
+            revert BeforeEndTime();
+        }
+
+        // Run final sync to ensure all liquidity is provided
+        sync(key, liquidityInfo_);
+
+        // Withdraw all liquidity to owner
+        int24 currentMinTick_ = currentMinTick;
+        Position.Info memory position = poolManager.getPosition(poolId, address(this), currentMinTick_, liquidityInfo_.maxTick);
+        _modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))), true);
+
+        // Disable syncing logic
+        allowSwap = true;
     }
 
     function _getTargetMinTick(uint256 timestamp) internal view returns (int24) {
@@ -253,11 +271,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         return liquidityInfo_.isToken0;
     }
 
-    function _modifyPosition(PoolKey calldata key, IPoolManager.ModifyPositionParams memory params)
+    function _modifyPosition(PoolKey calldata key, IPoolManager.ModifyPositionParams memory params, bool takeToOwner)
         internal
         returns (BalanceDelta delta)
     {
-        delta = abi.decode(poolManager.lock(abi.encode(IPoolManager.modifyPosition.selector, key, params)), (BalanceDelta));
+        delta = abi.decode(poolManager.lock(abi.encode(IPoolManager.modifyPosition.selector, key, params, takeToOwner)), (BalanceDelta));
     }
 
     function _swap(PoolKey calldata key, IPoolManager.SwapParams memory params) internal returns (BalanceDelta delta) {
@@ -298,7 +316,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
 
             if (callback.params.liquidityDelta < 0) {
                 // Removing liquidity, take tokens from the poolManager
-                _takeDeltas(callback.key, delta, false);
+                _takeDeltas(callback.key, delta, callback.takeToOwner); // Take to owner if specified (exit)
             } else {
                 // Adding liquidity, settle tokens to the poolManager
                 _settleDeltas(callback.key, delta);
