@@ -112,6 +112,17 @@ contract LiquidityBootstrappingPool is BaseHook {
             return LiquidityBootstrappingPool.beforeSwap.selector;
         }
 
+        sync(key, liquidityInfo_);
+
+        return LiquidityBootstrappingPool.beforeSwap.selector;
+    }
+
+    function sync(PoolKey calldata key, LiquidityInfo memory liquidityInfo_) public {
+        if (epochSynced[_floorToEpoch(block.timestamp)]) {
+            // Already synced for this epoch
+            return;
+        }
+
         uint256 targetLiquidity = _getTargetLiquidity();
         uint256 amountToProvide = targetLiquidity - amountProvided;
 
@@ -176,7 +187,7 @@ contract LiquidityBootstrappingPool is BaseHook {
             }
         }
 
-        return LiquidityBootstrappingPool.beforeSwap.selector;
+        epochSynced[_floorToEpoch(block.timestamp)] = true;
     }
 
     function _getTargetMinTick() internal view returns (int24) {
