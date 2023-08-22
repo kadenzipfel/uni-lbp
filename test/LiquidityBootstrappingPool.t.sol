@@ -285,7 +285,7 @@ contract LiquidityBootstrappingPool is Test, Deployers {
         assertEq(liquidityBootstrappingPool.getTargetLiquidity(), 42069e18);
 
         // CASE 4: More time has passed, so the target liquidity should still be the total amount
-        vm.warp(100000 + 864000 + 1000);
+        vm.warp(100000 + 864000 + 3600);
         assertEq(liquidityBootstrappingPool.getTargetLiquidity(), 42069e18);
     }
 
