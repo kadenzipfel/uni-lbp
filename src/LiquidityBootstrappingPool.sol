@@ -11,12 +11,13 @@ import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/contracts/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/contracts/types/BalanceDelta.sol";
+import {Owned} from "@solmate/auth/Owned.sol";
 
 error InvalidTimeRange();
 error InvalidTickRange();
 error BeforeStartTime();
 
-contract LiquidityBootstrappingPool is BaseHook {
+contract LiquidityBootstrappingPool is BaseHook, Owned {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
 
@@ -51,7 +52,7 @@ contract LiquidityBootstrappingPool is BaseHook {
 
     PoolId poolId;
 
-    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
+    constructor(IPoolManager _poolManager) BaseHook(_poolManager) Owned(msg.sender) {}
 
     function getHooksCalls() public pure override returns (Hooks.Calls memory) {
         return Hooks.Calls({
@@ -192,6 +193,10 @@ contract LiquidityBootstrappingPool is BaseHook {
         epochSynced[timestamp] = true;
     }
 
+    function exit() external onlyOwner {
+        
+    }
+
     function _getTargetMinTick(uint256 timestamp) internal view returns (int24) {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
@@ -259,9 +264,9 @@ contract LiquidityBootstrappingPool is BaseHook {
         delta = abi.decode(poolManager.lock(abi.encode(IPoolManager.swap.selector, key, params)), (BalanceDelta));
     }
 
-    function _takeDeltas(PoolKey memory key, BalanceDelta delta) internal {
-        poolManager.take(key.currency0, address(this), uint256(uint128(-delta.amount0())));
-        poolManager.take(key.currency1, address(this), uint256(uint128(-delta.amount1())));
+    function _takeDeltas(PoolKey memory key, BalanceDelta delta, bool takeToOwner) internal {
+        poolManager.take(key.currency0, takeToOwner ? owner : address(this), uint256(uint128(-delta.amount0())));
+        poolManager.take(key.currency1, takeToOwner ? owner : address(this), uint256(uint128(-delta.amount1())));
     }
 
     function _settleDeltas(PoolKey memory key, BalanceDelta delta) internal {
@@ -293,7 +298,7 @@ contract LiquidityBootstrappingPool is BaseHook {
 
             if (callback.params.liquidityDelta < 0) {
                 // Removing liquidity, take tokens from the poolManager
-                _takeDeltas(callback.key, delta);
+                _takeDeltas(callback.key, delta, false);
             } else {
                 // Adding liquidity, settle tokens to the poolManager
                 _settleDeltas(callback.key, delta);
@@ -308,7 +313,7 @@ contract LiquidityBootstrappingPool is BaseHook {
             BalanceDelta delta = poolManager.swap(callback.key, callback.params, bytes(""));
 
             // Take and settle deltas
-            _takeDeltas(callback.key, delta);
+            _takeDeltas(callback.key, delta, true); // Take tokens to the owner
             _settleDeltas(callback.key, delta);
 
             return abi.encode(delta);
