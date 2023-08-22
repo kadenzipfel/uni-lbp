@@ -204,7 +204,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         }
 
         // Run final sync to ensure all liquidity is provided
-        sync(key, liquidityInfo_);
+        sync(key);
 
         // Withdraw all liquidity to owner
         int24 currentMinTick_ = currentMinTick;
@@ -238,6 +238,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
 
     // Note: target liquidity represents total of intended liquidity 
     // provided plus tokens sold, not just liquidity provided
+    // denominated in bootstrapping token
     function _getTargetLiquidity(uint256 timestamp) internal view returns (uint256) {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 

@@ -15,7 +15,7 @@ import {CurrencyLibrary, Currency} from "@uniswap/v4-core/contracts/types/Curren
 import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
 import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
 
-contract LiquidityBootstrappingPool is Test, Deployers {
+contract LiquidityBootstrappingPoolTest is Test, Deployers {
     using PoolIdLibrary for PoolKey;
 
     int24 constant MIN_TICK_SPACING = 1;
@@ -441,5 +441,37 @@ contract LiquidityBootstrappingPool is Test, Deployers {
 
         // Assert liquidity value is proportional amount of liquidity to time passed - amount swapped
         assertEq(position.liquidity, 550925925925925925925);
+    }
+
+    function testExit() public {
+        // Get balance before exit
+        uint256 balanceBefore = token0.balanceOf(address(this));
+
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            startTime: uint32(10000),
+            endTime: uint32(10000 + 86400),
+            minTick: int24(0),
+            maxTick: int24(5000),
+            isToken0: true
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        // Sync part way through
+        vm.warp(50000);
+        liquidityBootstrappingPool.sync(key);
+
+        // Skip to end time
+        vm.warp(10000 + 86400 + 3600);
+
+        // Exit
+        liquidityBootstrappingPool.exit(key);
+
+        // Get balance after exit
+        uint256 balanceAfter = token0.balanceOf(address(this));
+
+        // Assert is the same since no swaps occured
+        assertEq(balanceBefore, balanceAfter);
     }
 }
