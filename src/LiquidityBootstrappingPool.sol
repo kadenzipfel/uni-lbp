@@ -34,9 +34,15 @@ contract LiquidityBootstrappingPool is BaseHook {
         IPoolManager.ModifyPositionParams params;
     }
 
+    struct SwapCallback {
+        PoolKey key;
+        IPoolManager.SwapParams params;
+    }
+
     LiquidityInfo public liquidityInfo;
     uint256 amountProvided;
     int24 currentMinTick;
+    bool allowSwap;
 
     PoolId poolId;
 
@@ -95,9 +101,9 @@ contract LiquidityBootstrappingPool is BaseHook {
     {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
-        if (liquidityInfo_.startTime > block.timestamp) {
+        if (liquidityInfo_.startTime > block.timestamp || allowSwap) {
             // Liquidity bootstrapping period has not started yet,
-            // allowing swapping as usual
+            // or allowSwap is true, allow swapping as usual
             return LiquidityBootstrappingPool.beforeSwap.selector;
         }
 
@@ -130,9 +136,39 @@ contract LiquidityBootstrappingPool is BaseHook {
             currentMinTick = targetMinTick;
         } else {
             // Current tick is above target minimum tick
-            // Sell tokens to bring tick down below target minimum tick
-            // If amount to sell is less than amount to provide, provide the remaining amount
-            // Else sell all available tokens according to target liquidity
+            // Sell all available tokens or enough to reach targetMinTick - 1
+            // If remaining tokens, update liquidity range to [targetMinTick, maxTick]
+            // and provide additional liquidity according to target liquidity
+
+            // Get bootstrapping token balance before swap
+            uint256 amountSwapped = _getTokenBalance(key);
+
+            // Swap
+            allowSwap = true; // Skip beforeSwap hook logic to avoid infinite loop
+            _swap(key, IPoolManager.SwapParams(_getZeroForOne(), int256(amountToProvide), TickMath.getSqrtRatioAtTick(targetMinTick - 1)));
+            allowSwap = false;
+
+            // amountSwapped = token balance before - token balance after
+            amountSwapped -= _getTokenBalance(key);
+
+            if (amountSwapped < amountToProvide) {
+                // Reached targetMinTick - 1 with remaining tokens
+                // Update liquidity range to [targetMinTick, maxTick]
+                // and provide additional liquidity according to target liquidity
+                Position.Info memory position = poolManager.getPosition(poolId, address(this), currentMinTick_, liquidityInfo_.maxTick);
+                uint256 newLiquidity = uint256(position.liquidity) + (amountToProvide - amountSwapped);
+
+                // Close current position
+                if (position.liquidity > 0) {
+                    _modifyPosition(key, IPoolManager.ModifyPositionParams(currentMinTick_, liquidityInfo_.maxTick, -int256(uint256(position.liquidity))));
+                }
+
+                // Open new position
+                _modifyPosition(key, IPoolManager.ModifyPositionParams(targetMinTick, liquidityInfo_.maxTick, int256(newLiquidity)));
+
+                // Update liquidity range
+                currentMinTick = targetMinTick;
+            }
         }
 
         return LiquidityBootstrappingPool.beforeSwap.selector;
@@ -178,11 +214,31 @@ contract LiquidityBootstrappingPool is BaseHook {
         return (timeElapsed * liquidityInfo_.totalAmount) / timeTotal;
     }
 
+    function _getTokenBalance(PoolKey calldata key) internal view returns (uint256) {
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+
+        if (liquidityInfo_.isToken0) {
+            return ERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
+        } else {
+            return ERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
+        }
+    }
+
+    function _getZeroForOne() internal view returns (bool) {
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+
+        return liquidityInfo_.isToken0;
+    }
+
     function _modifyPosition(PoolKey calldata key, IPoolManager.ModifyPositionParams memory params)
         internal
         returns (BalanceDelta delta)
     {
         delta = abi.decode(poolManager.lock(abi.encode(IPoolManager.modifyPosition.selector, key, params)), (BalanceDelta));
+    }
+
+    function _swap(PoolKey calldata key, IPoolManager.SwapParams memory params) internal returns (BalanceDelta delta) {
+        delta = abi.decode(poolManager.lock(abi.encode(IPoolManager.swap.selector, key, params)), (BalanceDelta));
     }
 
     function _takeDeltas(PoolKey memory key, BalanceDelta delta) internal {
@@ -223,7 +279,18 @@ contract LiquidityBootstrappingPool is BaseHook {
 
             return abi.encode(delta);
         }
-        // TODO: Support swap selector
+
+        if (selector == IPoolManager.swap.selector) {
+            SwapCallback memory callback = abi.decode(data[32:], (SwapCallback));
+
+            BalanceDelta delta = poolManager.swap(callback.key, callback.params, bytes(""));
+
+            // Take and settle deltas
+            _takeDeltas(callback.key, delta);
+            _settleDeltas(callback.key, delta);
+
+            return abi.encode(delta);
+        }
 
         return bytes("");
     }
