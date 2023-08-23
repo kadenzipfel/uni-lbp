@@ -1,36 +1,28 @@
 # Uni-LBP
 
-Uniswap V4 hook-enabled, capital efficient, liquidity bootstrapping pool.
+A capital-efficient liquidity bootstrapping pool (LBP) for Uniswap V4 with hook functionality.
 
 ## Overview
 
-Uni-LBP is a Uniswap v4 liquidity bootstrapping pool enabled by v4 hooks. Similar to Balancer's LBP, the pool allows for a token to be sold at a linearly decreasing price. The pool gradually increases liquidity and sell pressure along a pre-defined schedule, allowing for accurate price discovery while providing equal opportunity to every purchaser and disincentivizing usage of bots.
+Uni-LBP is designed for Uniswap v4, allowing tokens to be sold at a linearly decreasing price. By leveraging v4 hooks, it emulates the functionality of Balancer's LBP. The pool smoothly increases liquidity and sell pressure based on a set schedule, ensuring accurate price discovery, equality for all purchasers, and reduced bot effectiveness.
 
 ### Benefits
 
-Beyond the general advantages of LBPs, this pool in particular has a few **additional benefits**:
+In addition to typical LBP advantages, Uni-LBP offers:
 
-- Zero starting capital requirements (excluding the token to be bootstrapped)
-    - By providing single sided liquidity and selling into the pool, unlike other LBPs, no liquidity is required for the other token in the pool
-- Capital efficient
-    - With Uniswap v4 concentrated liquidity
-- Limit orders
-    - Traders can effectively place limit orders on the pool by adding single sided with the other token
-- Gas efficient
+- **No initial capital requirements**: Only the bootstrapping token is needed.
+- **Capital efficiency**: Thanks to Uniswap v4's concentrated liquidity.
+- **Limit orders**: Enables traders to place effective limit orders by adding single-sided liquidity.
+- **Gas efficiency**: Optimized for lower transaction costs.
 
 ## Mechanism
 
-Every epoch (default 1 hour but can be defined as any period of time), before a swap can take place, the pool syncs a liquidity position volume and range corresponding to the amount of time which has passed in the defined bootstrapping period. As time progresses, liquidity is incrementally introduced to the pool. The quantity and lower bound of this liquidity diminishes linearly according to:
+Before allowing a swap in any epoch (defaulted at 1 hour but customizable), the pool adjusts its liquidity position based on the elapsed bootstrapping time. Over time, liquidity is progressively added. The quantity and minimum range of this liquidity decreases linearly:
 
-The ratio of the difference between the current target minimum tick and the maximum tick to the overall range (maxTick - minTick) equals the fraction of elapsed time to the total duration:
+- Price range equation: `(maxTick - targetMinTick) / (maxTick - minTick) = timeElapsed / timeTotal`
+- Liquidity proportion: `(targetLiquidity / totalAmount) = timeElapsed / timeTotal`
 
-`(maxTick - targetMinTick) / (maxTick - minTick) = timeElapsed / timeTotal`
-
-The proportion of target liquidity to the total amount mirrors the ratio of elapsed time to the total duration:
-
-`(targetLiquidity / totalAmount) = timeElapsed / timeTotal`
-
-While the price is in range of our liquidity position, additional liquidity to be provided following the target amount of liquidity will be sold into the pool, pushing the price down until it is out of range before continuing to provide liquidity. This allows for efficient price discovery and liquidity at optimal prices.
+If the price is within our liquidity range, additional liquidity, matching the target amount, will be sold into the pool. This drives the price downwards until it exits the range, after which liquidity provision continues. This ensures efficient price discovery and liquidity provisioning at the best prices.
 
 The contract is easily adaptable to variances in price decay mechanisms such that the provided liquidity is optimal for the intended purpose.
 
