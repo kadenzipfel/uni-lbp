@@ -2,9 +2,11 @@
 
 Uniswap V4 hook-enabled, capital efficient, liquidity bootstrapping pool.
 
-### Overview
+## Overview
 
 Uni-LBP is a Uniswap v4 liquidity bootstrapping pool enabled by v4 hooks. Similar to Balancer's LBP, the pool allows for a token to be sold at a linearly decreasing price. The pool gradually increases liquidity and sell pressure along a pre-defined schedule, allowing for accurate price discovery while providing equal opportunity to every purchaser and disincentivizing usage of bots.
+
+### Benefits
 
 Beyond the general advantages of LBPs, this pool in particular has a few **additional benefits**:
 
@@ -16,7 +18,7 @@ Beyond the general advantages of LBPs, this pool in particular has a few **addit
     - Traders can effectively place limit orders on the pool by adding single sided with the other token
 - Gas efficient
 
-### Mechanism
+## Mechanism
 
 Every epoch (default 1 hour but can be defined as any period of time), before a swap can take place, the pool syncs a liquidity position volume and range corresponding to the amount of time which has passed in the defined bootstrapping period. As time progresses, liquidity is incrementally introduced to the pool. The quantity and lower bound of this liquidity diminishes linearly according to:
 
@@ -30,16 +32,16 @@ While the price is in range of our liquidity position, additional liquidity to b
 
 The contract is easily adaptable to variances in price decay mechanisms such that the provided liquidity is optimal for the intended purpose.
 
-### Todo
+## Todo
 
 - [ ] Native currency support
 - [ ] Different price decay functions
 - [ ] Decaying upper bound of liquidity range
 
-### License
+## License
 
 This project is licensed under the MIT License.
 
-### Disclaimer
+## Disclaimer
 
 This is experimental software and is provided on an "as is" and "as available" basis. We do not give any warranties and will not be liable for any loss incurred through any use of this codebase.
