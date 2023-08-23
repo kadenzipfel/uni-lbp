@@ -14,6 +14,7 @@ import {PoolSwapTest} from "@uniswap/v4-core/contracts/test/PoolSwapTest.sol";
 import {CurrencyLibrary, Currency} from "@uniswap/v4-core/contracts/types/Currency.sol";
 import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
 import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
+import {PoolModifyPositionTest} from "@uniswap/v4-core/contracts/test/PoolModifyPositionTest.sol";
 
 contract LiquidityBootstrappingPoolTest is Test, Deployers {
     using PoolIdLibrary for PoolKey;
@@ -30,6 +31,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
     PoolId id;
 
     PoolSwapTest swapRouter;
+    PoolModifyPositionTest modifyPositionRouter;
 
     struct LiquidityInfo {
         uint128 totalAmount; // The total amount of liquidity to provide
@@ -72,11 +74,14 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         id = key.toId();
 
         swapRouter = new PoolSwapTest(manager);
+        modifyPositionRouter = new PoolModifyPositionTest(IPoolManager(address(manager)));
 
         token0.approve(address(liquidityBootstrappingPool), type(uint256).max);
         token1.approve(address(liquidityBootstrappingPool), type(uint256).max);
         token0.approve(address(swapRouter), type(uint256).max);
         token1.approve(address(swapRouter), type(uint256).max);
+        token0.approve(address(modifyPositionRouter), type(uint256).max);
+        token1.approve(address(modifyPositionRouter), type(uint256).max);
     }
 
     function testAfterInitializeSetsStorageAndTransfersTokens() public {
@@ -473,5 +478,62 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
 
         // Assert balance is the same since no swaps occured
         assertEq(balanceBefore / 10, balanceAfter / 10); // Acceptable amount of precision loss (< 10 wei)
+    }
+
+    function testFullFlow() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            startTime: uint32(10000),
+            endTime: uint32(10000 + 86400),
+            minTick: int24(0),
+            maxTick: int24(5000),
+            isToken0: true
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+
+        // Before start time
+        vm.warp(5000);
+
+        // Provide external liquidity
+        token0.mint(address(0xBEEF), 1000 ether);
+        token1.mint(address(0xBEEF), 1000 ether);
+        vm.startPrank(address(0xBEEF));
+        token0.approve(address(modifyPositionRouter), 1000 ether);
+        token1.approve(address(modifyPositionRouter), 1000 ether);
+        modifyPositionRouter.modifyPosition(key, IPoolManager.ModifyPositionParams(0, 4000, 10 ether));
+        vm.stopPrank();
+
+        // Swap before start time each way
+        token0.mint(address(0xdeadbeef), 1000 ether);
+        token1.mint(address(0xdeadbeef), 1000 ether);
+        vm.startPrank(address(0xdeadbeef));
+        token0.approve(address(swapRouter), 1000 ether);
+        token1.approve(address(swapRouter), 1000 ether);
+        swapRouter.swap(key, IPoolManager.SwapParams(true, 1 ether, SQRT_RATIO_1_1), PoolSwapTest.TestSettings(true, true));
+        swapRouter.swap(key, IPoolManager.SwapParams(false, 2 ether, SQRT_RATIO_2_1 - 91239123), PoolSwapTest.TestSettings(true, true));
+        vm.stopPrank();
+
+        // Part way through duration
+        vm.warp(50000);
+
+        // Sync
+        liquidityBootstrappingPool.sync(key);
+
+        // Swap
+        vm.startPrank(address(0xdeadbeef));
+        swapRouter.swap(key, IPoolManager.SwapParams(false, 100 ether, SQRT_RATIO_4_1), PoolSwapTest.TestSettings(true, true));
+        vm.stopPrank();
+
+        // Skip to end time
+        vm.warp(10000 + 86400 + 3600);
+
+        // Swap
+        vm.startPrank(address(0xdeadbeef));
+        swapRouter.swap(key, IPoolManager.SwapParams(true, 20 ether, SQRT_RATIO_1_2), PoolSwapTest.TestSettings(true, true));
+        vm.stopPrank();
+
+        // Exit
+        liquidityBootstrappingPool.exit(key);
     }
 }
