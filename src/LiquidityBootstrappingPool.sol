@@ -314,21 +314,29 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
     }
 
     function _takeDeltas(PoolKey memory key, BalanceDelta delta, bool takeToOwner) internal {
-        poolManager.take(key.currency0, takeToOwner ? owner : address(this), uint256(uint128(-delta.amount0())));
-        poolManager.take(key.currency1, takeToOwner ? owner : address(this), uint256(uint128(-delta.amount1())));
+        int256 delta0 = delta.amount0();
+        int256 delta1 = delta.amount1();
+
+        if (delta0 < 0) {
+            poolManager.take(key.currency0, takeToOwner ? owner : address(this), uint256(-delta0));
+        }
+
+        if (delta1 < 0) {
+            poolManager.take(key.currency1, takeToOwner ? owner : address(this), uint256(-delta1));
+        }
     }
 
     function _settleDeltas(PoolKey memory key, BalanceDelta delta) internal {
-        uint256 delta0 = uint256(uint128(delta.amount0()));
-        uint256 delta1 = uint256(uint128(delta.amount1()));
+        int256 delta0 = delta.amount0();
+        int256 delta1 = delta.amount1();
 
         if (delta0 > 0) {
-            key.currency0.transfer(address(poolManager), uint256(uint128(delta.amount0())));
+            key.currency0.transfer(address(poolManager), uint256(delta0));
             poolManager.settle(key.currency0);
         }
 
         if (delta1 > 0) {
-            key.currency1.transfer(address(poolManager), uint256(uint128(delta.amount1())));
+            key.currency1.transfer(address(poolManager), uint256(delta1));
             poolManager.settle(key.currency1);
         }
     }
