@@ -249,15 +249,10 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
         // Assert less than or equal to maxTick and greater than or equal to minTick
-        int24 targetMinTick = liquidityBootstrappingPool.getTargetMinTick(block.timestamp + startTime + timeRange / timePassedDenominator);
-        assertTrue(
-            targetMinTick < maxTick
-                || targetMinTick == maxTick
-        );
-        assertTrue(
-            targetMinTick > minTick
-                || targetMinTick == minTick
-        );
+        int24 targetMinTick =
+            liquidityBootstrappingPool.getTargetMinTick(block.timestamp + startTime + timeRange / timePassedDenominator);
+        assertTrue(targetMinTick < maxTick || targetMinTick == maxTick);
+        assertTrue(targetMinTick > minTick || targetMinTick == minTick);
     }
 
     function testGetTargetLiquidity() public {
@@ -323,12 +318,11 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-        uint256 targetLiquidity = liquidityBootstrappingPool.getTargetLiquidity(block.timestamp + startTime + timeRange / timePassedDenominator);
-        // Assert less than or equal to target amount
-        assertTrue(
-            targetLiquidity < totalAmount
-                || targetLiquidity == totalAmount
+        uint256 targetLiquidity = liquidityBootstrappingPool.getTargetLiquidity(
+            block.timestamp + startTime + timeRange / timePassedDenominator
         );
+        // Assert less than or equal to target amount
+        assertTrue(targetLiquidity < totalAmount || targetLiquidity == totalAmount);
     }
 
     function testBeforeSwapOutOfRangeSetsLiquidityPosition() public {
@@ -343,7 +337,6 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-
         // CASE 1: Before start time, doesn't add liquidity
         vm.warp(9999);
 
@@ -351,7 +344,6 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         assertEq(manager.getLiquidity(id), 0);
-
 
         // CASE 2: Part way through, adds correct amount of liquidity at correct range
         vm.warp(50000);
@@ -364,7 +356,6 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
 
         // Assert liquidity value is proportional amount of liquidity to time passed
         assertEq(position.liquidity, 4878558521669597624372);
-
 
         // CASE 3: At end time, adds all liquidity at full range
         vm.warp(10000 + 86400 + 3600);
@@ -395,19 +386,18 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
 
-
         // CASE 1: Tick is in range, swaps out of range and adds liquidity with remaining amount
 
         vm.warp(50000);
 
         // Get tick before swap
-        (, int24 beforeTick, , , ,) = manager.getSlot0(id);
+        (, int24 beforeTick,,,,) = manager.getSlot0(id);
 
         vm.prank(address(manager));
         liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         // Get tick after swap
-        (, int24 afterTick, , , ,) = manager.getSlot0(id);
+        (, int24 afterTick,,,,) = manager.getSlot0(id);
 
         // Assert tick has lowered
         assertTrue(afterTick < beforeTick);
@@ -421,19 +411,18 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         // Assert liquidity value is proportional amount of liquidity to time passed
         assertEq(position.liquidity, 4869217071209495223347);
 
-
         // CASE 2: Time has passed, tick back in range, swaps out of range and adds liquidity with remaining amount
 
         vm.warp(60000);
 
         // Get tick before swap
-        (, beforeTick, , , ,) = manager.getSlot0(id);
+        (, beforeTick,,,,) = manager.getSlot0(id);
 
         vm.prank(address(manager));
         liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         // Get tick after swap
-        (, afterTick, , , ,) = manager.getSlot0(id);
+        (, afterTick,,,,) = manager.getSlot0(id);
 
         // Assert tick has lowered
         assertTrue(afterTick < beforeTick);
@@ -510,8 +499,14 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         vm.startPrank(address(0xdeadbeef));
         token0.approve(address(swapRouter), 1000 ether);
         token1.approve(address(swapRouter), 1000 ether);
-        swapRouter.swap(key, IPoolManager.SwapParams(true, 1 ether, SQRT_RATIO_1_1), PoolSwapTest.TestSettings(true, true));
-        swapRouter.swap(key, IPoolManager.SwapParams(false, 2 ether, SQRT_RATIO_2_1 - 91239123), PoolSwapTest.TestSettings(true, true));
+        swapRouter.swap(
+            key, IPoolManager.SwapParams(true, 1 ether, SQRT_RATIO_1_1), PoolSwapTest.TestSettings(true, true)
+        );
+        swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(false, 2 ether, SQRT_RATIO_2_1 - 91239123),
+            PoolSwapTest.TestSettings(true, true)
+        );
         vm.stopPrank();
 
         // Part way through duration
@@ -522,7 +517,9 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
 
         // Swap
         vm.startPrank(address(0xdeadbeef));
-        swapRouter.swap(key, IPoolManager.SwapParams(false, 100 ether, SQRT_RATIO_4_1), PoolSwapTest.TestSettings(true, true));
+        swapRouter.swap(
+            key, IPoolManager.SwapParams(false, 100 ether, SQRT_RATIO_4_1), PoolSwapTest.TestSettings(true, true)
+        );
         vm.stopPrank();
 
         // Skip to end time
@@ -530,7 +527,9 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
 
         // Swap
         vm.startPrank(address(0xdeadbeef));
-        swapRouter.swap(key, IPoolManager.SwapParams(true, 20 ether, SQRT_RATIO_1_2), PoolSwapTest.TestSettings(true, true));
+        swapRouter.swap(
+            key, IPoolManager.SwapParams(true, 20 ether, SQRT_RATIO_1_2), PoolSwapTest.TestSettings(true, true)
+        );
         vm.stopPrank();
 
         // Exit
@@ -567,8 +566,14 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         vm.startPrank(address(0xdeadbeef));
         token0.approve(address(swapRouter), 1000 ether);
         token1.approve(address(swapRouter), 1000 ether);
-        swapRouter.swap(key, IPoolManager.SwapParams(false, 1 ether, SQRT_RATIO_1_1), PoolSwapTest.TestSettings(true, true));
-        swapRouter.swap(key, IPoolManager.SwapParams(true, 2 ether, SQRT_RATIO_1_2 - 91239123), PoolSwapTest.TestSettings(true, true));
+        swapRouter.swap(
+            key, IPoolManager.SwapParams(false, 1 ether, SQRT_RATIO_1_1), PoolSwapTest.TestSettings(true, true)
+        );
+        swapRouter.swap(
+            key,
+            IPoolManager.SwapParams(true, 2 ether, SQRT_RATIO_1_2 - 91239123),
+            PoolSwapTest.TestSettings(true, true)
+        );
         vm.stopPrank();
 
         // Part way through duration
@@ -579,7 +584,9 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
 
         // Swap
         vm.startPrank(address(0xdeadbeef));
-        swapRouter.swap(key, IPoolManager.SwapParams(true, 100 ether, SQRT_RATIO_1_4), PoolSwapTest.TestSettings(true, true));
+        swapRouter.swap(
+            key, IPoolManager.SwapParams(true, 100 ether, SQRT_RATIO_1_4), PoolSwapTest.TestSettings(true, true)
+        );
         vm.stopPrank();
 
         // Skip to end time
@@ -587,7 +594,9 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
 
         // Swap
         vm.startPrank(address(0xdeadbeef));
-        swapRouter.swap(key, IPoolManager.SwapParams(false, 20 ether, SQRT_RATIO_2_1), PoolSwapTest.TestSettings(true, true));
+        swapRouter.swap(
+            key, IPoolManager.SwapParams(false, 20 ether, SQRT_RATIO_2_1), PoolSwapTest.TestSettings(true, true)
+        );
         vm.stopPrank();
 
         // Exit
