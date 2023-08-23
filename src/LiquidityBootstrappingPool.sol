@@ -20,6 +20,9 @@ error InvalidTickRange();
 error BeforeStartTime();
 error BeforeEndTime();
 
+/// @title LiquidityBootstrappingPool
+/// @notice Uniswap V4 hook-enabled, capital efficient, liquidity bootstrapping pool.
+/// @author https://github.com/kadenzipfel
 contract LiquidityBootstrappingPool is BaseHook, Owned {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
