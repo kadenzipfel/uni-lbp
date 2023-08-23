@@ -17,6 +17,8 @@ In addition to typical LBP advantages, Uni-LBP offers:
 
 ## Mechanism
 
+![Diagram](./diagram.png)
+
 Before allowing a swap in any epoch (defaulted at 1 hour but customizable), the pool adjusts its liquidity position based on the elapsed bootstrapping time. Over time, liquidity is progressively added. The quantity and minimum range of this liquidity decreases linearly:
 
 - Price range equation: `(maxTick - targetMinTick) / (maxTick - minTick) = timeElapsed / timeTotal`
