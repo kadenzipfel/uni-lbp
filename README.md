@@ -23,10 +23,10 @@ Beyond the general advantages of LBPs, this pool in particular has a few **addit
 Every epoch (default 1 hour but can be defined as any period of time), before a swap can take place, the pool syncs a liquidity position volume and range corresponding to the amount of time which has passed in the defined bootstrapping period. As time progresses, liquidity is incrementally introduced to the pool. The quantity and lower bound of this liquidity diminishes linearly according to:
 
 The ratio of the difference between the current target minimum tick and the maximum tick to the overall range (maxTick - minTick) equals the fraction of elapsed time to the total duration:
-(maxTick - targetMinTick) / (maxTick - minTick) = timeElapsed / timeTotal
+`(maxTick - targetMinTick) / (maxTick - minTick) = timeElapsed / timeTotal`
 
 The proportion of target liquidity to the total amount mirrors the ratio of elapsed time to the total duration:
-(targetLiquidity / totalAmount) = timeElapsed / timeTotal
+`(targetLiquidity / totalAmount) = timeElapsed / timeTotal`
 
 While the price is in range of our liquidity position, additional liquidity to be provided following the target amount of liquidity will be sold into the pool, pushing the price down until it is out of range before continuing to provide liquidity. This allows for efficient price discovery and liquidity at optimal prices.
 
