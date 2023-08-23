@@ -24,6 +24,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
 
+    /// Generic pool info used by hooks
     struct LiquidityInfo {
         uint128 totalAmount; // The total amount of liquidity to provide
         uint32 startTime; // Start time of the liquidity bootstrapping period
@@ -33,12 +34,14 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         bool isToken0; // Whether the token to provide liquidity for is token0
     }
 
+    /// Modify position callback received in `lockAcquired`
     struct ModifyPositionCallback {
         PoolKey key;
         IPoolManager.ModifyPositionParams params;
         bool takeToOwner;
     }
 
+    /// Swap callback received in `lockAcquired`
     struct SwapCallback {
         PoolKey key;
         IPoolManager.SwapParams params;
