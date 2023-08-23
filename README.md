@@ -1,10 +1,10 @@
 # Uni-LBP
 
-A capital-efficient liquidity bootstrapping pool (LBP) for Uniswap V4 with hook functionality.
+A capital-efficient liquidity bootstrapping pool (LBP) for Uniswap V4 via hooks.
 
 ## Overview
 
-Uni-LBP is designed for Uniswap v4, allowing tokens to be sold at a linearly decreasing price. By leveraging v4 hooks, it emulates the functionality of Balancer's LBP. The pool smoothly increases liquidity and sell pressure based on a set schedule, ensuring accurate price discovery, equality for all purchasers, and reduced bot effectiveness.
+Uni-LBP is a Uniswap v4 pool, allowing tokens to be sold at a linearly decreasing price. By leveraging v4 hooks, it emulates the functionality of Balancer's LBP. The pool smoothly increases liquidity and sell pressure based on a set schedule, ensuring accurate price discovery, equality for all purchasers, and reduced bot effectiveness.
 
 ### Benefits
 
@@ -20,7 +20,7 @@ In addition to typical LBP advantages, Uni-LBP offers:
 Before allowing a swap in any epoch (defaulted at 1 hour but customizable), the pool adjusts its liquidity position based on the elapsed bootstrapping time. Over time, liquidity is progressively added. The quantity and minimum range of this liquidity decreases linearly:
 
 - Price range equation: `(maxTick - targetMinTick) / (maxTick - minTick) = timeElapsed / timeTotal`
-- Liquidity proportion: `(targetLiquidity / totalAmount) = timeElapsed / timeTotal`
+- Target liquidity equation: `(targetLiquidity / totalAmount) = timeElapsed / timeTotal`
 
 If the price is within our liquidity range, additional liquidity, matching the target amount, will be sold into the pool. This drives the price downwards until it exits the range, after which liquidity provision continues. This ensures efficient price discovery and liquidity provisioning at the best prices.
 
