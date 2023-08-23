@@ -536,4 +536,61 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         // Exit
         liquidityBootstrappingPool.exit(key);
     }
+
+    function testFullFlowToken1() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            startTime: uint32(10000),
+            endTime: uint32(10000 + 86400),
+            minTick: int24(0),
+            maxTick: int24(5000),
+            isToken0: false
+        });
+
+        manager.initialize(key, SQRT_RATIO_1_2, abi.encode(liquidityInfo));
+
+        // Before start time
+        vm.warp(5000);
+
+        // Provide external liquidity
+        token0.mint(address(0xBEEF), 1000 ether);
+        token1.mint(address(0xBEEF), 1000 ether);
+        vm.startPrank(address(0xBEEF));
+        token0.approve(address(modifyPositionRouter), 1000 ether);
+        token1.approve(address(modifyPositionRouter), 1000 ether);
+        modifyPositionRouter.modifyPosition(key, IPoolManager.ModifyPositionParams(-4000, 0, 10 ether));
+        vm.stopPrank();
+
+        // Swap before start time each way
+        token0.mint(address(0xdeadbeef), 1000 ether);
+        token1.mint(address(0xdeadbeef), 1000 ether);
+        vm.startPrank(address(0xdeadbeef));
+        token0.approve(address(swapRouter), 1000 ether);
+        token1.approve(address(swapRouter), 1000 ether);
+        swapRouter.swap(key, IPoolManager.SwapParams(false, 1 ether, SQRT_RATIO_1_1), PoolSwapTest.TestSettings(true, true));
+        swapRouter.swap(key, IPoolManager.SwapParams(true, 2 ether, SQRT_RATIO_1_2 - 91239123), PoolSwapTest.TestSettings(true, true));
+        vm.stopPrank();
+
+        // Part way through duration
+        vm.warp(50000);
+
+        // Sync
+        liquidityBootstrappingPool.sync(key);
+
+        // Swap
+        vm.startPrank(address(0xdeadbeef));
+        swapRouter.swap(key, IPoolManager.SwapParams(true, 100 ether, SQRT_RATIO_1_4), PoolSwapTest.TestSettings(true, true));
+        vm.stopPrank();
+
+        // Skip to end time
+        vm.warp(10000 + 86400 + 3600);
+
+        // Swap
+        vm.startPrank(address(0xdeadbeef));
+        swapRouter.swap(key, IPoolManager.SwapParams(false, 20 ether, SQRT_RATIO_2_1), PoolSwapTest.TestSettings(true, true));
+        vm.stopPrank();
+
+        // Exit
+        liquidityBootstrappingPool.exit(key);
+    }
 }
