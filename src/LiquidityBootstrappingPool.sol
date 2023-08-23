@@ -44,20 +44,32 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         IPoolManager.SwapParams params;
     }
 
+    /// Time between each epoch
     uint256 constant EPOCH_SIZE = 1 hours;
-
+    /// Whether the epoch at a given floored timestamp has been synced
     mapping(uint256 => bool) epochSynced;
 
+    /// The liquidity info for this pool
     LiquidityInfo public liquidityInfo;
 
+    /// The total amount of liquidity provided so far
+    /// Note: Represents total of tokens provided as liquidity or sold, 
+    ///       not just liquidity provided,
     uint256 amountProvided;
+    /// Current minimum tick of liquidity range
+    /// Note: In the case of token1 being the bootstrapping token, 
+    ///       ticks are inverted and this is used as the upper tick
     int24 currentMinTick;
-    bool allowSwap;
+    /// Whether to skip syncing logic
+    bool skipSync;
 
+    /// PoolId of the pool
     PoolId poolId;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) Owned(msg.sender) {}
 
+    /// @notice Used by PoolManager to determine which hooks to use
+    /// @return Hooks struct indicating which hooks to use
     function getHooksCalls() public pure override returns (Hooks.Calls memory) {
         return Hooks.Calls({
             beforeInitialize: false,
@@ -136,7 +148,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
     function sync(PoolKey calldata key) public {
         uint256 timestamp = _floorToEpoch(block.timestamp);
 
-        if (allowSwap || epochSynced[timestamp]) {
+        if (skipSync || epochSynced[timestamp]) {
             // Already synced for this epoch or syncing is disabled
             return;
         }
@@ -215,7 +227,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
             uint256 amountSwapped = _getTokenBalance(key);
 
             // Swap
-            allowSwap = true; // Skip beforeSwap hook logic to avoid infinite loop
+            skipSync = true; // Skip beforeSwap hook logic to avoid infinite loop
             _swap(
                 key,
                 IPoolManager.SwapParams(
@@ -224,7 +236,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
                     TickMath.getSqrtRatioAtTick(isToken0 ? targetMinTick - 1 : -targetMinTick + 1)
                 )
             );
-            allowSwap = false;
+            skipSync = false;
 
             // amountSwapped = token balance before - token balance after
             amountSwapped -= _getTokenBalance(key);
@@ -321,7 +333,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         );
 
         // Disable syncing logic
-        allowSwap = true;
+        skipSync = true;
     }
 
     /// @notice Get the target minimum tick for the given timestamp
