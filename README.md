@@ -33,6 +33,7 @@ The contract is easily adaptable to variances in price decay mechanisms such tha
 - [ ] Native currency support
 - [ ] Different price decay functions
 - [ ] Decaying upper bound of liquidity range
+    - We can further concentrate liquidity by reducing the upper bound of the liquidity along a similar decay
 
 ## License
 
