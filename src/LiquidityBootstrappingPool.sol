@@ -71,6 +71,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         });
     }
 
+    /// @notice Hook called by the poolManager after initialization
+    /// @param sender PoolManager.initialize msg.sender
+    /// @param key Pool key
+    /// @param data LiquidityInfo encoded as bytes
+    /// @return Function selector (used to proceed execution in PoolManager)
     function afterInitialize(address sender, PoolKey calldata key, uint160, int24, bytes calldata data)
         external
         override
@@ -103,6 +108,9 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         return LiquidityBootstrappingPool.afterInitialize.selector;
     }
 
+    /// @notice Hook called by the poolManager before swap
+    /// @param key Pool key
+    /// @return Function selector (used to proceed execution in PoolManager)
     function beforeSwap(address, PoolKey calldata key, IPoolManager.SwapParams calldata, bytes calldata)
         external
         override
@@ -120,6 +128,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         return LiquidityBootstrappingPool.beforeSwap.selector;
     }
 
+    /// @notice Logic to sync the pool to the current epoch
+    ///         - Provides liquidity at new target range and
+    ///           sells tokens if necessary to hit target price
+    ///         - Called in beforeSwap hook or manually by anyone
+    /// @param key Pool key
     function sync(PoolKey calldata key) public {
         uint256 timestamp = _floorToEpoch(block.timestamp);
 
@@ -273,6 +286,10 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         epochSynced[timestamp] = true;
     }
 
+    /// @notice Withdraw LBP liquidity to owner
+    ///         - Liquidity bootstrapping period must have ended
+    ///         - Permanently disables syncing logic
+    /// @param key Pool key
     function exit(PoolKey calldata key) external onlyOwner {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
@@ -307,6 +324,9 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         allowSwap = true;
     }
 
+    /// @notice Get the target minimum tick for the given timestamp
+    /// @param timestamp Epoch floored timestamp
+    /// @return Target minimum tick
     function _getTargetMinTick(uint256 timestamp) internal view returns (int24) {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
@@ -328,9 +348,12 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         return int24(int256(liquidityInfo_.maxTick) - (numerator / int256(timeTotal)));
     }
 
-    // Note: target liquidity represents total of intended liquidity
-    // provided plus tokens sold, not just liquidity provided
-    // denominated in bootstrapping token
+    /// @notice Get the target liquidity for the given timestamp
+    ///         Note: target liquidity represents total of intended tokens
+    ///         provided as liquidity or sold, not just liquidity provided,
+    ///         denominated in bootstrapping token
+    /// @param timestamp Epoch floored timestamp
+    /// @return Target liquidity
     function _getTargetLiquidity(uint256 timestamp) internal view returns (uint256) {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
@@ -348,7 +371,13 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         return (timeElapsed * liquidityInfo_.totalAmount) / timeTotal;
     }
 
-    function _getLiquidityAmount(int24 tickLower, int24 tickUpper, uint256 tokenLiquidity, bool isToken0)
+    /// @notice Get the intended amount of liquidity for the given amount of tokens and ticks
+    /// @param tickLower Lower tick of the liquidity range
+    /// @param tickUpper Upper tick of the liquidity range
+    /// @param tokenAmount Amount of tokens
+    /// @param isToken0 Whether token0 is the token to use as liquidity
+    /// @return liquidity Intended amount of liquidity
+    function _getLiquidityAmount(int24 tickLower, int24 tickUpper, uint256 tokenAmount, bool isToken0)
         internal
         pure
         returns (int256 liquidity)
@@ -358,13 +387,18 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
 
         if (isToken0) {
             liquidity =
-                int256(uint256(LiquidityAmounts.getLiquidityForAmount0(sqrtRatioAX96, sqrtRatioBX96, tokenLiquidity)));
+                int256(uint256(LiquidityAmounts.getLiquidityForAmount0(sqrtRatioAX96, sqrtRatioBX96, tokenAmount)));
         } else {
             liquidity =
-                int256(uint256(LiquidityAmounts.getLiquidityForAmount1(sqrtRatioAX96, sqrtRatioBX96, tokenLiquidity)));
+                int256(uint256(LiquidityAmounts.getLiquidityForAmount1(sqrtRatioAX96, sqrtRatioBX96, tokenAmount)));
         }
     }
 
+    /// @notice Get the amount of tokens for the given amount of liquidity and ticks
+    /// @param tickLower Lower tick of the liquidity range
+    /// @param tickUpper Upper tick of the liquidity range
+    /// @param liquidity Amount of liquidity
+    /// @param isToken0 Whether token0 is the token used as liquidity
     function _getTokenAmount(int24 tickLower, int24 tickUpper, uint128 liquidity, bool isToken0)
         internal
         pure
@@ -380,6 +414,9 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         }
     }
 
+    /// @notice Get the bootstrapping token balance of the contract
+    /// @param key Pool key
+    /// @return Bootstrapping token balance
     function _getTokenBalance(PoolKey calldata key) internal view returns (uint256) {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo;
 
@@ -390,6 +427,19 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         }
     }
 
+    /// @notice Floor timestamp to current epoch
+    /// @param timestamp Timestamp
+    /// @return Floored timestamp
+    function _floorToEpoch(uint256 timestamp) internal pure returns (uint256) {
+        return (timestamp / EPOCH_SIZE) * EPOCH_SIZE;
+    }
+
+    /// @notice Helper function to modify position
+    ///         Creates lock with intended parameters, later used in callback to `lockAcquired`
+    /// @param key Pool key
+    /// @param params Modify position parameters
+    /// @param takeToOwner Whether to take the tokens to the owner
+    /// @return delta Balance delta
     function _modifyPosition(PoolKey calldata key, IPoolManager.ModifyPositionParams memory params, bool takeToOwner)
         internal
         returns (BalanceDelta delta)
@@ -399,10 +449,18 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         );
     }
 
+    /// @notice Helper function to swap tokens
+    ///         Creates lock with intended parameters, later used in callback to `lockAcquired`
+    /// @param key Pool key
+    /// @param params Swap parameters
+    /// @return delta Balance delta
     function _swap(PoolKey calldata key, IPoolManager.SwapParams memory params) internal returns (BalanceDelta delta) {
         delta = abi.decode(poolManager.lock(abi.encode(IPoolManager.swap.selector, key, params)), (BalanceDelta));
     }
 
+    /// @notice Helper function to take tokens according to balance deltas
+    /// @param delta Balance delta
+    /// @param takeToOwner Whether to take the tokens to the owner
     function _takeDeltas(PoolKey memory key, BalanceDelta delta, bool takeToOwner) internal {
         int256 delta0 = delta.amount0();
         int256 delta1 = delta.amount1();
@@ -416,6 +474,9 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         }
     }
 
+    /// @notice Helper function to settle tokens according to balance deltas
+    /// @param key Pool key
+    /// @param delta Balance delta
     function _settleDeltas(PoolKey memory key, BalanceDelta delta) internal {
         int256 delta0 = delta.amount0();
         int256 delta1 = delta.amount1();
@@ -431,10 +492,10 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         }
     }
 
-    function _floorToEpoch(uint256 timestamp) internal pure returns (uint256) {
-        return (timestamp / EPOCH_SIZE) * EPOCH_SIZE;
-    }
-
+    /// @notice Callback function called by the poolManager when a lock is acquired
+    ///         Used for modifying positions and swapping tokens internally
+    /// @param data Data passed to the lock function
+    /// @return Balance delta
     function lockAcquired(bytes calldata data) external override poolManagerOnly returns (bytes memory) {
         bytes4 selector = abi.decode(data[:32], (bytes4));
 
