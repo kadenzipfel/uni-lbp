@@ -171,7 +171,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
 
             // Swap
             allowSwap = true; // Skip beforeSwap hook logic to avoid infinite loop
-            _swap(key, IPoolManager.SwapParams(_getZeroForOne(), int256(amountToProvide), TickMath.getSqrtRatioAtTick(targetMinTick - 1)));
+            _swap(key, IPoolManager.SwapParams(liquidityInfo_.isToken0, int256(amountToProvide), TickMath.getSqrtRatioAtTick(targetMinTick - 1)));
             allowSwap = false;
 
             // amountSwapped = token balance before - token balance after
@@ -294,12 +294,6 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         } else {
             return ERC20(Currency.unwrap(key.currency1)).balanceOf(address(this));
         }
-    }
-
-    function _getZeroForOne() internal view returns (bool) {
-        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
-
-        return liquidityInfo_.isToken0;
     }
 
     function _modifyPosition(PoolKey calldata key, IPoolManager.ModifyPositionParams memory params, bool takeToOwner)
