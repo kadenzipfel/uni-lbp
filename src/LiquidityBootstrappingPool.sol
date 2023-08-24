@@ -52,25 +52,23 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
 
     /// Time between each epoch
     uint256 constant EPOCH_SIZE = 1 hours;
-    /// Whether the epoch at a given floored timestamp has been synced
-    mapping(uint256 => bool) epochSynced;
+    /// Whether the epoch of a given pool at a given floored timestamp has been synced
+    /// poolId => epoch floored timestamp => synced
+    mapping(PoolId => mapping(uint256 => bool)) epochSynced;
 
-    /// The liquidity info for this pool
-    LiquidityInfo public liquidityInfo;
+    /// The liquidity info for the given pool
+    mapping(PoolId => LiquidityInfo) public liquidityInfo;
 
-    /// The total amount of liquidity provided so far
+    /// The total amount of liquidity provided to the given pool so far
     /// Note: Represents total of tokens provided as liquidity or sold,
     ///       not just liquidity provided,
-    uint256 amountProvided;
-    /// Current minimum tick of liquidity range
+    mapping(PoolId => uint256) amountProvided;
+    /// Current minimum tick of liquidity range of the given pool
     /// Note: In the case of token1 being the bootstrapping token,
     ///       ticks are inverted and this is used as the upper tick
-    int24 currentMinTick;
-    /// Whether to skip syncing logic
-    bool skipSync;
-
-    /// PoolId of the pool
-    PoolId poolId;
+    mapping(PoolId => int24) currentMinTick;
+    /// Whether to skip syncing logic for the given pool
+    mapping(PoolId => bool) skipSync;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) Owned(msg.sender) {}
 
