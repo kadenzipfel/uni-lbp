@@ -11,7 +11,6 @@ import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/contracts/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/contracts/types/BalanceDelta.sol";
-import {Owned} from "@solmate/auth/Owned.sol";
 // TODO: Import from v4-periphery once it's merged
 import {LiquidityAmounts} from "./lib/LiquidityAmounts.sol";
 
@@ -23,7 +22,7 @@ error BeforeEndTime();
 /// @title LiquidityBootstrappingHooks
 /// @notice Uniswap V4 hook-enabled, capital efficient, liquidity bootstrapping pool.
 /// @author https://github.com/kadenzipfel
-contract LiquidityBootstrappingHooks is BaseHook, Owned {
+contract LiquidityBootstrappingHooks is BaseHook {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
 
@@ -76,7 +75,7 @@ contract LiquidityBootstrappingHooks is BaseHook, Owned {
     /// Whether to skip syncing logic for the given pool
     mapping(PoolId => bool) skipSync;
 
-    constructor(IPoolManager _poolManager) BaseHook(_poolManager) Owned(msg.sender) {}
+    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
     /// @notice Used by PoolManager to determine which hooks to use
     /// @return Hooks struct indicating which hooks to use
@@ -219,7 +218,7 @@ contract LiquidityBootstrappingHooks is BaseHook, Owned {
     ///         - Liquidity bootstrapping period must have ended
     ///         - Permanently disables syncing logic
     /// @param key Pool key
-    function exit(PoolKey calldata key) external onlyOwner {
+    function exit(PoolKey calldata key) external {
         PoolId poolId = key.toId();
         LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
 
