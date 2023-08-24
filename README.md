@@ -28,6 +28,39 @@ If the price is within our liquidity range, additional liquidity, matching the t
 
 The contract is easily adaptable to variances in price decay mechanisms such that the provided liquidity is optimal for the intended purpose.
 
+## Usage
+
+> **NOTE:** The address used to call `PoolManager.initialize` will be set as the pool `owner`, **allowing only that address to withdraw liquidity** at the end of the bootstrapping period. The address used as pool `owner` **must be able to receive both currencies used in the pool**. You may transfer ownership after initialization with `transferPoolOwnership`.
+
+To integrate this hook with a pool:
+- Approve the hook address to spend at least `liquidityInfo.totalAmount` of the bootstrapping token
+- Initialize a pool with Uniswap v4's `PoolManager.initialize`, passing in the deployed hook contract address as `PoolKey.hooks` and the `LiquidityInfo` and `epochSize` you intend to use. e.g.:
+
+```solidity
+PoolKey key = PoolKey(
+    Currency.wrap(address(token0)), // Pool token0 (lower numerically ordered token address in the pool)
+    Currency.wrap(address(token1)), // Pool token1 (higher numerically ordered token address in the pool)
+    0, // Fee to be used by the pool
+    MIN_TICK_SPACING, // Tick spacing to be used by the pool
+    liquidityBootstrappingHooks // This hook contract
+);
+
+LiquidityInfo memory liquidityInfo = LiquidityInfo({
+    totalAmount: uint128(1000e18), // Total amount of tokens to bootstrap
+    startTime: uint32(10000), // Start time of bootstrapping period
+    endTime: uint32(10000 + 86400), // End time of bootstrapping period
+    minTick: int24(0), // Minimum tick to provide liquidity at (NOTE: If token1 is bootstrapping token, value is inverted and used as upper tick)
+    maxTick: int24(5000), // Minimum tick to provide liquidity at (NOTE: If token1 is bootstrapping token, value is inverted and used as lower tick)
+    isToken0: true // Whether the bootstrapping token is token0
+});
+
+// The intended duration of each epoch
+uint256 epochSize = 1 hours;
+
+// Initialize
+poolManager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, epochSize));
+```
+
 ## Todo
 
 - [ ] Native currency support

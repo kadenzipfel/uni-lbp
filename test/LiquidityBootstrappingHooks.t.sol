@@ -25,8 +25,9 @@ contract LiquidityBootstrappingHooksTest is Test, Deployers {
     TestERC20 token0;
     TestERC20 token1;
     PoolManager manager;
-    LiquidityBootstrappingHooksImplementation liquidityBootstrappingHooks =
-        LiquidityBootstrappingHooksImplementation(address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG)));
+    LiquidityBootstrappingHooksImplementation liquidityBootstrappingHooks = LiquidityBootstrappingHooksImplementation(
+        address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG))
+    );
     PoolKey key;
     PoolId id;
 
@@ -249,8 +250,9 @@ contract LiquidityBootstrappingHooksTest is Test, Deployers {
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // Assert less than or equal to maxTick and greater than or equal to minTick
-        int24 targetMinTick =
-            liquidityBootstrappingHooks.getTargetMinTick(id, block.timestamp + startTime + timeRange / timePassedDenominator);
+        int24 targetMinTick = liquidityBootstrappingHooks.getTargetMinTick(
+            id, block.timestamp + startTime + timeRange / timePassedDenominator
+        );
         assertTrue(targetMinTick < maxTick || targetMinTick == maxTick);
         assertTrue(targetMinTick > minTick || targetMinTick == minTick);
     }
@@ -318,8 +320,8 @@ contract LiquidityBootstrappingHooksTest is Test, Deployers {
 
         manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
-        uint256 targetLiquidity = liquidityBootstrappingHooks.getTargetLiquidity(id, 
-            block.timestamp + startTime + timeRange / timePassedDenominator
+        uint256 targetLiquidity = liquidityBootstrappingHooks.getTargetLiquidity(
+            id, block.timestamp + startTime + timeRange / timePassedDenominator
         );
         // Assert less than or equal to target amount
         assertTrue(targetLiquidity < totalAmount || targetLiquidity == totalAmount);

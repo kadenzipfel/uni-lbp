@@ -32,7 +32,9 @@ contract LiquidityBootstrappingHooks is BaseHook {
         uint128 totalAmount; // The total amount of liquidity to provide
         uint32 startTime; // Start time of the liquidity bootstrapping period
         uint32 endTime; // End time of the liquidity bootstrapping period
+        // NOTE: If token1 is bootstrapping token, value is inverted and used as upper tick
         int24 minTick; // The minimum tick to provide liquidity at
+        // NOTE: If token1 is bootstrapping token, value is inverted and used as lower tick
         int24 maxTick; // The maximum tick to provide liquidity at
         bool isToken0; // Whether the token to provide liquidity for is token0
     }
@@ -120,8 +122,11 @@ contract LiquidityBootstrappingHooks is BaseHook {
         returns (bytes4)
     {
         InitializeData memory data_ = abi.decode(data, (InitializeData));
-        
-        if (data_.liquidityInfo_.startTime > data_.liquidityInfo_.endTime || data_.liquidityInfo_.endTime < block.timestamp) {
+
+        if (
+            data_.liquidityInfo_.startTime > data_.liquidityInfo_.endTime
+                || data_.liquidityInfo_.endTime < block.timestamp
+        ) {
             revert InvalidTimeRange();
         }
         if (
@@ -157,7 +162,7 @@ contract LiquidityBootstrappingHooks is BaseHook {
         returns (bytes4)
     {
         PoolId poolId = key.toId();
-        
+
         if (liquidityInfo[poolId].startTime > block.timestamp) {
             // Liquidity bootstrapping period has not started yet,
             // allow swapping as usual
