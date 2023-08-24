@@ -59,11 +59,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
     LiquidityInfo public liquidityInfo;
 
     /// The total amount of liquidity provided so far
-    /// Note: Represents total of tokens provided as liquidity or sold, 
+    /// Note: Represents total of tokens provided as liquidity or sold,
     ///       not just liquidity provided,
     uint256 amountProvided;
     /// Current minimum tick of liquidity range
-    /// Note: In the case of token1 being the bootstrapping token, 
+    /// Note: In the case of token1 being the bootstrapping token,
     ///       ticks are inverted and this is used as the upper tick
     int24 currentMinTick;
     /// Whether to skip syncing logic
@@ -170,59 +170,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         (, int24 tick,,,,) = poolManager.getSlot0(poolId);
         int24 targetMinTick = _getTargetMinTick(timestamp);
 
-        int24 currentMinTick_ = currentMinTick;
-
         if (isToken0 && tick < targetMinTick || !isToken0 && tick > targetMinTick) {
             // Current tick is below target minimum tick
             // Update liquidity range to [targetMinTick, maxTick]
             // and provide additional liquidity according to target liquidity
-            Position.Info memory position = poolManager.getPosition(
-                poolId,
-                address(this),
-                isToken0 ? currentMinTick_ : -liquidityInfo_.maxTick,
-                isToken0 ? liquidityInfo_.maxTick : -currentMinTick_
-            );
-            uint256 newLiquidity = _getTokenAmount(
-                isToken0 ? currentMinTick_ : -liquidityInfo_.maxTick,
-                isToken0 ? liquidityInfo_.maxTick : -currentMinTick_,
-                position.liquidity,
-                liquidityInfo_.isToken0
-            ) + amountToProvide;
-
-            // Close current position
-            if (position.liquidity > 0) {
-                _modifyPosition(
-                    key,
-                    IPoolManager.ModifyPositionParams(
-                        isToken0 ? currentMinTick_ : -liquidityInfo_.maxTick,
-                        isToken0 ? liquidityInfo_.maxTick : -currentMinTick_,
-                        -int256(uint256(position.liquidity))
-                    ),
-                    false
-                );
-            }
-
-            // Get liquidity amount for new position
-            int256 liquidity = _getLiquidityAmount(
-                isToken0 ? targetMinTick : -liquidityInfo_.maxTick,
-                isToken0 ? liquidityInfo_.maxTick : -targetMinTick,
-                newLiquidity,
-                isToken0
-            );
-
-            // Open new position
-            _modifyPosition(
-                key,
-                IPoolManager.ModifyPositionParams(
-                    isToken0 ? targetMinTick : -liquidityInfo_.maxTick,
-                    isToken0 ? liquidityInfo_.maxTick : -targetMinTick,
-                    liquidity
-                ),
-                false
-            );
-
-            // Update liquidity range
-            currentMinTick = targetMinTick;
+            _replacePosition(key, liquidityInfo_, amountToProvide, targetMinTick);
         } else {
             // Current tick is above target minimum tick
             // Sell all available tokens or enough to reach targetMinTick - 1
@@ -248,56 +200,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
             amountSwapped -= _getTokenBalance(key);
 
             if (amountSwapped < amountToProvide) {
-                // Reached targetMinTick - 1 with remaining tokens
-                // Update liquidity range to [targetMinTick, maxTick]
-                // and provide additional liquidity according to target liquidity
-                Position.Info memory position = poolManager.getPosition(
-                    poolId,
-                    address(this),
-                    isToken0 ? currentMinTick_ : -liquidityInfo_.maxTick,
-                    isToken0 ? liquidityInfo_.maxTick : -currentMinTick_
-                );
-                uint256 newLiquidity = _getTokenAmount(
-                    isToken0 ? currentMinTick_ : -liquidityInfo_.maxTick,
-                    isToken0 ? liquidityInfo_.maxTick : -currentMinTick_,
-                    position.liquidity,
-                    liquidityInfo_.isToken0
-                ) + (amountToProvide - amountSwapped);
-
-                // Close current position
-                if (position.liquidity > 0) {
-                    _modifyPosition(
-                        key,
-                        IPoolManager.ModifyPositionParams(
-                            isToken0 ? currentMinTick_ : -liquidityInfo_.maxTick,
-                            isToken0 ? liquidityInfo_.maxTick : -currentMinTick_,
-                            -int256(uint256(position.liquidity))
-                        ),
-                        false
-                    );
-                }
-
-                // Get liquidity amount for new position
-                int256 liquidity = _getLiquidityAmount(
-                    isToken0 ? targetMinTick : -liquidityInfo_.maxTick,
-                    isToken0 ? liquidityInfo_.maxTick : -targetMinTick,
-                    newLiquidity,
-                    liquidityInfo_.isToken0
-                );
-
-                // Open new position
-                _modifyPosition(
-                    key,
-                    IPoolManager.ModifyPositionParams(
-                        isToken0 ? targetMinTick : -liquidityInfo_.maxTick,
-                        isToken0 ? liquidityInfo_.maxTick : -targetMinTick,
-                        liquidity
-                    ),
-                    false
-                );
-
-                // Update liquidity range
-                currentMinTick = targetMinTick;
+                _replacePosition(key, liquidityInfo_, amountToProvide - amountSwapped, targetMinTick);
             }
         }
 
@@ -340,6 +243,50 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
 
         // Disable syncing logic
         skipSync = true;
+    }
+
+    /// @notice Close and reopen the LP position
+    function _replacePosition(
+        PoolKey calldata key,
+        LiquidityInfo memory liquidityInfo_,
+        uint256 liquidityChange,
+        int24 targetMinTick
+    ) internal {
+        bool isToken0 = liquidityInfo_.isToken0;
+
+        int24 currentMinTick_ = currentMinTick;
+        int24 currentTickLower = isToken0 ? currentMinTick_ : -liquidityInfo_.maxTick;
+        int24 currentTickUpper = isToken0 ? liquidityInfo_.maxTick : -currentMinTick_;
+
+        int24 newTickLower = isToken0 ? targetMinTick : -liquidityInfo_.maxTick;
+        int24 newTickUpper = isToken0 ? liquidityInfo_.maxTick : -targetMinTick;
+
+        // Update liquidity range to [targetMinTick, maxTick]
+        // and provide additional liquidity according to target liquidity
+        Position.Info memory position =
+            poolManager.getPosition(poolId, address(this), currentTickLower, currentTickUpper);
+        uint256 newLiquidity =
+            _getTokenAmount(currentTickLower, currentTickUpper, position.liquidity, isToken0) + liquidityChange;
+
+        // Close current position
+        if (position.liquidity > 0) {
+            _modifyPosition(
+                key,
+                IPoolManager.ModifyPositionParams(
+                    currentTickLower, currentTickUpper, -int256(uint256(position.liquidity))
+                ),
+                false
+            );
+        }
+
+        // Get liquidity amount for new position
+        int256 liquidity = _getLiquidityAmount(newTickLower, newTickUpper, newLiquidity, isToken0);
+
+        // Open new position
+        _modifyPosition(key, IPoolManager.ModifyPositionParams(newTickLower, newTickUpper, liquidity), false);
+
+        // Update liquidity range
+        currentMinTick = targetMinTick;
     }
 
     /// @notice Get the target minimum tick for the given timestamp
