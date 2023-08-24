@@ -99,7 +99,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         returns (bytes4)
     {
         LiquidityInfo memory liquidityInfo_ = abi.decode(data, (LiquidityInfo));
-
+        
         if (liquidityInfo_.startTime > liquidityInfo_.endTime || liquidityInfo_.endTime < block.timestamp) {
             revert InvalidTimeRange();
         }
@@ -109,10 +109,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
                 || liquidityInfo_.maxTick > TickMath.maxUsableTick(key.tickSpacing)
         ) revert InvalidTickRange();
 
-        liquidityInfo = liquidityInfo_;
-        currentMinTick = liquidityInfo_.minTick;
+        PoolId poolId = key.toId();
 
-        poolId = key.toId();
+        liquidityInfo[poolId] = liquidityInfo_;
+        currentMinTick[poolId] = liquidityInfo_.minTick;
+
 
         // Transfer bootstrapping token to this contract
         if (liquidityInfo_.isToken0) {
