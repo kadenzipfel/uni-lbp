@@ -18,6 +18,7 @@ error InvalidTimeRange();
 error InvalidTickRange();
 error BeforeStartTime();
 error BeforeEndTime();
+error Unauthorized();
 
 /// @title LiquidityBootstrappingHooks
 /// @notice Uniswap V4 hook-enabled, capital efficient, liquidity bootstrapping pool.
@@ -74,6 +75,8 @@ contract LiquidityBootstrappingHooks is BaseHook {
     mapping(PoolId => int24) currentMinTick;
     /// Whether to skip syncing logic for the given pool
     mapping(PoolId => bool) skipSync;
+    /// Owner of the given pool
+    mapping(PoolId => address) owner;
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
@@ -119,6 +122,7 @@ contract LiquidityBootstrappingHooks is BaseHook {
         liquidityInfo[poolId] = data_.liquidityInfo_;
         currentMinTick[poolId] = data_.liquidityInfo_.minTick;
         epochSize[poolId] = data_.epochSize_;
+        owner[poolId] = sender;
 
         // Transfer bootstrapping token to this contract
         if (data_.liquidityInfo_.isToken0) {
@@ -220,6 +224,11 @@ contract LiquidityBootstrappingHooks is BaseHook {
     /// @param key Pool key
     function exit(PoolKey calldata key) external {
         PoolId poolId = key.toId();
+
+        if (owner[poolId] != msg.sender) {
+            revert Unauthorized();
+        }
+
         LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
 
         if (_floorToEpoch(epochSize[poolId], block.timestamp) < uint256(liquidityInfo_.endTime)) {
@@ -441,15 +450,16 @@ contract LiquidityBootstrappingHooks is BaseHook {
     /// @param delta Balance delta
     /// @param takeToOwner Whether to take the tokens to the owner
     function _takeDeltas(PoolKey memory key, BalanceDelta delta, bool takeToOwner) internal {
+        PoolId poolId = key.toId();
         int256 delta0 = delta.amount0();
         int256 delta1 = delta.amount1();
 
         if (delta0 < 0) {
-            poolManager.take(key.currency0, takeToOwner ? owner : address(this), uint256(-delta0));
+            poolManager.take(key.currency0, takeToOwner ? owner[poolId] : address(this), uint256(-delta0));
         }
 
         if (delta1 < 0) {
-            poolManager.take(key.currency1, takeToOwner ? owner : address(this), uint256(-delta1));
+            poolManager.take(key.currency1, takeToOwner ? owner[poolId] : address(this), uint256(-delta1));
         }
     }
 
