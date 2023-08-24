@@ -50,8 +50,14 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         IPoolManager.SwapParams params;
     }
 
-    /// Time between each epoch
-    uint256 constant EPOCH_SIZE = 1 hours;
+    // Data received by `afterInitialize`
+    struct InitializeData {
+        LiquidityInfo liquidityInfo_;
+        uint256 epochSize_;
+    }
+
+    /// Time between each epoch for a given pool
+    mapping(PoolId => uint256) epochSize;
     /// Whether the epoch of a given pool at a given floored timestamp has been synced
     /// poolId => epoch floored timestamp => synced
     mapping(PoolId => mapping(uint256 => bool)) epochSynced;
@@ -98,28 +104,28 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         poolManagerOnly
         returns (bytes4)
     {
-        LiquidityInfo memory liquidityInfo_ = abi.decode(data, (LiquidityInfo));
+        InitializeData memory data_ = abi.decode(data, (InitializeData));
         
-        if (liquidityInfo_.startTime > liquidityInfo_.endTime || liquidityInfo_.endTime < block.timestamp) {
+        if (data_.liquidityInfo_.startTime > data_.liquidityInfo_.endTime || data_.liquidityInfo_.endTime < block.timestamp) {
             revert InvalidTimeRange();
         }
         if (
-            liquidityInfo_.minTick > liquidityInfo_.maxTick
-                || liquidityInfo_.minTick < TickMath.minUsableTick(key.tickSpacing)
-                || liquidityInfo_.maxTick > TickMath.maxUsableTick(key.tickSpacing)
+            data_.liquidityInfo_.minTick > data_.liquidityInfo_.maxTick
+                || data_.liquidityInfo_.minTick < TickMath.minUsableTick(key.tickSpacing)
+                || data_.liquidityInfo_.maxTick > TickMath.maxUsableTick(key.tickSpacing)
         ) revert InvalidTickRange();
 
         PoolId poolId = key.toId();
 
-        liquidityInfo[poolId] = liquidityInfo_;
-        currentMinTick[poolId] = liquidityInfo_.minTick;
-
+        liquidityInfo[poolId] = data_.liquidityInfo_;
+        currentMinTick[poolId] = data_.liquidityInfo_.minTick;
+        epochSize[poolId] = data_.epochSize_;
 
         // Transfer bootstrapping token to this contract
-        if (liquidityInfo_.isToken0) {
-            ERC20(Currency.unwrap(key.currency0)).transferFrom(sender, address(this), liquidityInfo_.totalAmount);
+        if (data_.liquidityInfo_.isToken0) {
+            ERC20(Currency.unwrap(key.currency0)).transferFrom(sender, address(this), data_.liquidityInfo_.totalAmount);
         } else {
-            ERC20(Currency.unwrap(key.currency1)).transferFrom(sender, address(this), liquidityInfo_.totalAmount);
+            ERC20(Currency.unwrap(key.currency1)).transferFrom(sender, address(this), data_.liquidityInfo_.totalAmount);
         }
 
         return LiquidityBootstrappingPool.afterInitialize.selector;
@@ -154,7 +160,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
     /// @param key Pool key
     function sync(PoolKey calldata key) public {
         PoolId poolId = key.toId();
-        uint256 timestamp = _floorToEpoch(block.timestamp);
+        uint256 timestamp = _floorToEpoch(epochSize[poolId], block.timestamp);
 
         if (skipSync[poolId] || epochSynced[poolId][timestamp]) {
             // Already synced for this epoch or syncing is disabled
@@ -217,7 +223,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         PoolId poolId = key.toId();
         LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
 
-        if (_floorToEpoch(block.timestamp) < uint256(liquidityInfo_.endTime)) {
+        if (_floorToEpoch(epochSize[poolId], block.timestamp) < uint256(liquidityInfo_.endTime)) {
             // Liquidity bootstrapping period has not ended yet
             revert BeforeEndTime();
         }
@@ -401,10 +407,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
     }
 
     /// @notice Floor timestamp to current epoch
+    /// @param epochSize_ Epoch size
     /// @param timestamp Timestamp
     /// @return Floored timestamp
-    function _floorToEpoch(uint256 timestamp) internal pure returns (uint256) {
-        return (timestamp / EPOCH_SIZE) * EPOCH_SIZE;
+    function _floorToEpoch(uint256 epochSize_, uint256 timestamp) internal pure returns (uint256) {
+        return (timestamp / epochSize_) * epochSize_;
     }
 
     /// @notice Helper function to modify position
