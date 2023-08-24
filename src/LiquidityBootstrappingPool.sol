@@ -164,13 +164,13 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
         bool isToken0 = liquidityInfo_.isToken0;
 
-        uint256 targetLiquidity = _getTargetLiquidity(timestamp);
+        uint256 targetLiquidity = _getTargetLiquidity(poolId, timestamp);
         uint256 amountToProvide = targetLiquidity - amountProvided[poolId];
 
         amountProvided[poolId] = targetLiquidity;
 
         (, int24 tick,,,,) = poolManager.getSlot0(poolId);
-        int24 targetMinTick = _getTargetMinTick(timestamp);
+        int24 targetMinTick = _getTargetMinTick(poolId, timestamp);
 
         if (isToken0 && tick < targetMinTick || !isToken0 && tick > targetMinTick) {
             // Current tick is below target minimum tick
@@ -294,11 +294,12 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         currentMinTick[poolId] = targetMinTick;
     }
 
-    /// @notice Get the target minimum tick for the given timestamp
+    /// @notice Get the target minimum tick for the given timestamp for the given pool
+    /// @param poolId Pool ID
     /// @param timestamp Epoch floored timestamp
     /// @return Target minimum tick
-    function _getTargetMinTick(uint256 timestamp) internal view returns (int24) {
-        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+    function _getTargetMinTick(PoolId poolId, uint256 timestamp) internal view returns (int24) {
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
 
         if (timestamp < uint256(liquidityInfo_.startTime)) revert BeforeStartTime();
 
@@ -318,14 +319,15 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         return int24(int256(liquidityInfo_.maxTick) - (numerator / int256(timeTotal)));
     }
 
-    /// @notice Get the target liquidity for the given timestamp
+    /// @notice Get the target liquidity for the given timestamp for the given pool
     ///         Note: target liquidity represents total of intended tokens
     ///         provided as liquidity or sold, not just liquidity provided,
     ///         denominated in bootstrapping token
+    /// @param poolId Pool ID
     /// @param timestamp Epoch floored timestamp
     /// @return Target liquidity
-    function _getTargetLiquidity(uint256 timestamp) internal view returns (uint256) {
-        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+    function _getTargetLiquidity(PoolId poolId, uint256 timestamp) internal view returns (uint256) {
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
 
         if (timestamp < uint256(liquidityInfo_.startTime)) revert BeforeStartTime();
 
@@ -384,11 +386,12 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         }
     }
 
-    /// @notice Get the bootstrapping token balance of the contract
+    /// @notice Get the bootstrapping token balance of the contract for the given pool
     /// @param key Pool key
     /// @return Bootstrapping token balance
     function _getTokenBalance(PoolKey calldata key) internal view returns (uint256) {
-        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+        PoolId poolId = key.toId();
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
 
         if (liquidityInfo_.isToken0) {
             return ERC20(Currency.unwrap(key.currency0)).balanceOf(address(this));
