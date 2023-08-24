@@ -134,7 +134,9 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         poolManagerOnly
         returns (bytes4)
     {
-        if (liquidityInfo.startTime > block.timestamp) {
+        PoolId poolId = key.toId();
+        
+        if (liquidityInfo[poolId].startTime > block.timestamp) {
             // Liquidity bootstrapping period has not started yet,
             // allow swapping as usual
             return LiquidityBootstrappingPool.beforeSwap.selector;
@@ -151,20 +153,21 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
     ///         - Called in beforeSwap hook or manually by anyone
     /// @param key Pool key
     function sync(PoolKey calldata key) public {
+        PoolId poolId = key.toId();
         uint256 timestamp = _floorToEpoch(block.timestamp);
 
-        if (skipSync || epochSynced[timestamp]) {
+        if (skipSync[poolId] || epochSynced[poolId][timestamp]) {
             // Already synced for this epoch or syncing is disabled
             return;
         }
 
-        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
         bool isToken0 = liquidityInfo_.isToken0;
 
         uint256 targetLiquidity = _getTargetLiquidity(timestamp);
-        uint256 amountToProvide = targetLiquidity - amountProvided;
+        uint256 amountToProvide = targetLiquidity - amountProvided[poolId];
 
-        amountProvided = targetLiquidity;
+        amountProvided[poolId] = targetLiquidity;
 
         (, int24 tick,,,,) = poolManager.getSlot0(poolId);
         int24 targetMinTick = _getTargetMinTick(timestamp);
@@ -184,7 +187,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
             uint256 amountSwapped = _getTokenBalance(key);
 
             // Swap
-            skipSync = true; // Skip beforeSwap hook logic to avoid infinite loop
+            skipSync[poolId] = true; // Skip beforeSwap hook logic to avoid infinite loop
             _swap(
                 key,
                 IPoolManager.SwapParams(
@@ -193,7 +196,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
                     TickMath.getSqrtRatioAtTick(isToken0 ? targetMinTick - 1 : -targetMinTick + 1)
                 )
             );
-            skipSync = false;
+            skipSync[poolId] = false;
 
             // amountSwapped = token balance before - token balance after
             amountSwapped -= _getTokenBalance(key);
@@ -203,7 +206,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
             }
         }
 
-        epochSynced[timestamp] = true;
+        epochSynced[poolId][timestamp] = true;
     }
 
     /// @notice Withdraw LBP liquidity to owner
@@ -211,7 +214,8 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
     ///         - Permanently disables syncing logic
     /// @param key Pool key
     function exit(PoolKey calldata key) external onlyOwner {
-        LiquidityInfo memory liquidityInfo_ = liquidityInfo;
+        PoolId poolId = key.toId();
+        LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
 
         if (_floorToEpoch(block.timestamp) < uint256(liquidityInfo_.endTime)) {
             // Liquidity bootstrapping period has not ended yet
@@ -222,7 +226,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         sync(key);
 
         // Withdraw all liquidity to owner
-        int24 currentMinTick_ = currentMinTick;
+        int24 currentMinTick_ = currentMinTick[poolId];
         bool isToken0 = liquidityInfo_.isToken0;
         Position.Info memory position = poolManager.getPosition(
             poolId,
@@ -241,7 +245,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         );
 
         // Disable syncing logic
-        skipSync = true;
+        skipSync[poolId] = true;
     }
 
     /// @notice Close and reopen the LP position
@@ -251,9 +255,11 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         uint256 liquidityChange,
         int24 targetMinTick
     ) internal {
+        PoolId poolId = key.toId();
+
         bool isToken0 = liquidityInfo_.isToken0;
 
-        int24 currentMinTick_ = currentMinTick;
+        int24 currentMinTick_ = currentMinTick[poolId];
         int24 currentTickLower = isToken0 ? currentMinTick_ : -liquidityInfo_.maxTick;
         int24 currentTickUpper = isToken0 ? liquidityInfo_.maxTick : -currentMinTick_;
 
@@ -285,7 +291,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         _modifyPosition(key, IPoolManager.ModifyPositionParams(newTickLower, newTickUpper, liquidity), false);
 
         // Update liquidity range
-        currentMinTick = targetMinTick;
+        currentMinTick[poolId] = targetMinTick;
     }
 
     /// @notice Get the target minimum tick for the given timestamp
