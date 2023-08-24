@@ -80,6 +80,12 @@ contract LiquidityBootstrappingHooks is BaseHook {
 
     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
 
+    /// @notice Enforces only pool owner can call
+    modifier poolOwnerOnly(PoolId poolId) {
+        if (msg.sender != owner[poolId]) revert Unauthorized();
+        _;
+    }
+
     /// @notice Used by PoolManager to determine which hooks to use
     /// @return Hooks struct indicating which hooks to use
     function getHooksCalls() public pure override returns (Hooks.Calls memory) {
@@ -218,17 +224,12 @@ contract LiquidityBootstrappingHooks is BaseHook {
         epochSynced[poolId][timestamp] = true;
     }
 
-    /// @notice Withdraw LBP liquidity to owner
+    /// @notice Withdraw LBP liquidity to pool owner
     ///         - Liquidity bootstrapping period must have ended
     ///         - Permanently disables syncing logic
     /// @param key Pool key
-    function exit(PoolKey calldata key) external {
+    function exit(PoolKey calldata key) external poolOwnerOnly(key.toId()) {
         PoolId poolId = key.toId();
-
-        if (owner[poolId] != msg.sender) {
-            revert Unauthorized();
-        }
-
         LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
 
         if (_floorToEpoch(epochSize[poolId], block.timestamp) < uint256(liquidityInfo_.endTime)) {

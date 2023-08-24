@@ -469,6 +469,27 @@ contract LiquidityBootstrappingHooksTest is Test, Deployers {
         assertEq(balanceBefore / 10, balanceAfter / 10); // Acceptable amount of precision loss (< 10 wei)
     }
 
+    function testExitRevertsNotOwner() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            startTime: uint32(10000),
+            endTime: uint32(10000 + 86400),
+            minTick: int24(0),
+            maxTick: int24(5000),
+            isToken0: true
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
+
+        // Skip to end time
+        vm.warp(10000 + 86400 + 3600);
+
+        // Exit
+        vm.prank(address(0xBEEF));
+        vm.expectRevert(bytes4(keccak256("Unauthorized()")));
+        liquidityBootstrappingHooks.exit(key);
+    }
+
     function testFullFlow() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),
