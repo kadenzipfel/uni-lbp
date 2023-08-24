@@ -11,7 +11,6 @@ import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/contracts/types/Currency.sol";
 import {BalanceDelta} from "@uniswap/v4-core/contracts/types/BalanceDelta.sol";
-import {Owned} from "@solmate/auth/Owned.sol";
 // TODO: Import from v4-periphery once it's merged
 import {LiquidityAmounts} from "./lib/LiquidityAmounts.sol";
 
@@ -19,11 +18,12 @@ error InvalidTimeRange();
 error InvalidTickRange();
 error BeforeStartTime();
 error BeforeEndTime();
+error Unauthorized();
 
 /// @title LiquidityBootstrappingHooks
 /// @notice Uniswap V4 hook-enabled, capital efficient, liquidity bootstrapping pool.
 /// @author https://github.com/kadenzipfel
-contract LiquidityBootstrappingHooks is BaseHook, Owned {
+contract LiquidityBootstrappingHooks is BaseHook {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
 
@@ -75,8 +75,23 @@ contract LiquidityBootstrappingHooks is BaseHook, Owned {
     mapping(PoolId => int24) currentMinTick;
     /// Whether to skip syncing logic for the given pool
     mapping(PoolId => bool) skipSync;
+    /// Owner of the given pool
+    mapping(PoolId => address) owner;
 
-    constructor(IPoolManager _poolManager) BaseHook(_poolManager) Owned(msg.sender) {}
+    constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}
+
+    /// @notice Enforces only pool owner can call
+    modifier poolOwnerOnly(PoolId poolId) {
+        if (msg.sender != owner[poolId]) revert Unauthorized();
+        _;
+    }
+
+    /// @notice Transfer pool ownership to newOwner
+    /// @param poolId Pool id
+    /// @param newOwner New owner
+    function transferPoolOwnership(PoolId poolId, address newOwner) external poolOwnerOnly(poolId) {
+        owner[poolId] = newOwner;
+    }
 
     /// @notice Used by PoolManager to determine which hooks to use
     /// @return Hooks struct indicating which hooks to use
@@ -120,6 +135,7 @@ contract LiquidityBootstrappingHooks is BaseHook, Owned {
         liquidityInfo[poolId] = data_.liquidityInfo_;
         currentMinTick[poolId] = data_.liquidityInfo_.minTick;
         epochSize[poolId] = data_.epochSize_;
+        owner[poolId] = sender;
 
         // Transfer bootstrapping token to this contract
         if (data_.liquidityInfo_.isToken0) {
@@ -215,11 +231,11 @@ contract LiquidityBootstrappingHooks is BaseHook, Owned {
         epochSynced[poolId][timestamp] = true;
     }
 
-    /// @notice Withdraw LBP liquidity to owner
+    /// @notice Withdraw LBP liquidity to pool owner
     ///         - Liquidity bootstrapping period must have ended
     ///         - Permanently disables syncing logic
     /// @param key Pool key
-    function exit(PoolKey calldata key) external onlyOwner {
+    function exit(PoolKey calldata key) external poolOwnerOnly(key.toId()) {
         PoolId poolId = key.toId();
         LiquidityInfo memory liquidityInfo_ = liquidityInfo[poolId];
 
@@ -442,15 +458,16 @@ contract LiquidityBootstrappingHooks is BaseHook, Owned {
     /// @param delta Balance delta
     /// @param takeToOwner Whether to take the tokens to the owner
     function _takeDeltas(PoolKey memory key, BalanceDelta delta, bool takeToOwner) internal {
+        PoolId poolId = key.toId();
         int256 delta0 = delta.amount0();
         int256 delta1 = delta.amount1();
 
         if (delta0 < 0) {
-            poolManager.take(key.currency0, takeToOwner ? owner : address(this), uint256(-delta0));
+            poolManager.take(key.currency0, takeToOwner ? owner[poolId] : address(this), uint256(-delta0));
         }
 
         if (delta1 < 0) {
-            poolManager.take(key.currency1, takeToOwner ? owner : address(this), uint256(-delta1));
+            poolManager.take(key.currency1, takeToOwner ? owner[poolId] : address(this), uint256(-delta1));
         }
     }
 
