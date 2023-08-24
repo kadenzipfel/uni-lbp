@@ -63,9 +63,8 @@ poolManager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, epochSize)
 
 ## Todo
 
-- [ ] [Native currency support](https://github.com/kadenzipfel/uni-lbp/issues/4)
+- [ ] [Native currency support](https://github.com/kadenzipfel/uni-lbp/issues/4) (good first issue)
 - [ ] [Decaying upper bound of liquidity range](https://github.com/kadenzipfel/uni-lbp/issues/5)
-    - We can further concentrate liquidity by reducing the upper bound of the liquidity along a similar decay
 - [ ] Different price decay functions
 
 ## License
