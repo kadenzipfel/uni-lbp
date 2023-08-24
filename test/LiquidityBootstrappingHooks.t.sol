@@ -490,6 +490,39 @@ contract LiquidityBootstrappingHooksTest is Test, Deployers {
         liquidityBootstrappingHooks.exit(key);
     }
 
+    function testTransferPoolOwnershipAndExit() public {
+        LiquidityInfo memory liquidityInfo = LiquidityInfo({
+            totalAmount: uint128(1000e18),
+            startTime: uint32(10000),
+            endTime: uint32(10000 + 86400),
+            minTick: int24(0),
+            maxTick: int24(5000),
+            isToken0: true
+        });
+
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
+
+        // Sync part way through
+        vm.warp(50000);
+        liquidityBootstrappingHooks.sync(key);
+
+        // Skip to end time
+        vm.warp(10000 + 86400 + 3600);
+
+        // Transfer pool ownership
+        liquidityBootstrappingHooks.transferPoolOwnership(id, address(0xBEEF));
+
+        // Exit
+        vm.prank(address(0xBEEF));
+        liquidityBootstrappingHooks.exit(key);
+
+        // Get balance after exit
+        uint256 balance = token0.balanceOf(address(0xBEEF));
+
+        // Assert new owner receives withdrawn tokens
+        assertEq(balance, 999999999999999999998);
+    }
+
     function testFullFlow() public {
         LiquidityInfo memory liquidityInfo = LiquidityInfo({
             totalAmount: uint128(1000e18),

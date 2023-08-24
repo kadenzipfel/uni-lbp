@@ -86,6 +86,13 @@ contract LiquidityBootstrappingHooks is BaseHook {
         _;
     }
 
+    /// @notice Transfer pool ownership to newOwner
+    /// @param poolId Pool id
+    /// @param newOwner New owner
+    function transferPoolOwnership(PoolId poolId, address newOwner) external poolOwnerOnly(poolId) {
+        owner[poolId] = newOwner;
+    }
+
     /// @notice Used by PoolManager to determine which hooks to use
     /// @return Hooks struct indicating which hooks to use
     function getHooksCalls() public pure override returns (Hooks.Calls memory) {
