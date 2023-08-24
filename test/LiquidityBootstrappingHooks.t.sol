@@ -8,7 +8,7 @@ import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/contracts/types/PoolId.sol
 import {PoolKey} from "@uniswap/v4-core/contracts/types/PoolKey.sol";
 import {PoolManager} from "@uniswap/v4-core/contracts/PoolManager.sol";
 import {IPoolManager} from "@uniswap/v4-core/contracts/interfaces/IPoolManager.sol";
-import {LiquidityBootstrappingPoolImplementation} from "./LiquidityBootstrappingPoolImplementation.sol";
+import {LiquidityBootstrappingHooksImplementation} from "./LiquidityBootstrappingHooksImplementation.sol";
 import {Hooks} from "@uniswap/v4-core/contracts/libraries/Hooks.sol";
 import {PoolSwapTest} from "@uniswap/v4-core/contracts/test/PoolSwapTest.sol";
 import {CurrencyLibrary, Currency} from "@uniswap/v4-core/contracts/types/Currency.sol";
@@ -16,7 +16,7 @@ import {TickMath} from "@uniswap/v4-core/contracts/libraries/TickMath.sol";
 import {Position} from "@uniswap/v4-core/contracts/libraries/Position.sol";
 import {PoolModifyPositionTest} from "@uniswap/v4-core/contracts/test/PoolModifyPositionTest.sol";
 
-contract LiquidityBootstrappingPoolTest is Test, Deployers {
+contract LiquidityBootstrappingHooksTest is Test, Deployers {
     using PoolIdLibrary for PoolKey;
 
     int24 constant MIN_TICK_SPACING = 1;
@@ -25,8 +25,8 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
     TestERC20 token0;
     TestERC20 token1;
     PoolManager manager;
-    LiquidityBootstrappingPoolImplementation liquidityBootstrappingPool =
-        LiquidityBootstrappingPoolImplementation(address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG)));
+    LiquidityBootstrappingHooksImplementation liquidityBootstrappingHooks =
+        LiquidityBootstrappingHooksImplementation(address(uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.AFTER_INITIALIZE_FLAG)));
     PoolKey key;
     PoolId id;
 
@@ -53,15 +53,15 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         manager = new PoolManager(500000);
 
         vm.record();
-        LiquidityBootstrappingPoolImplementation impl =
-            new LiquidityBootstrappingPoolImplementation(manager, liquidityBootstrappingPool);
+        LiquidityBootstrappingHooksImplementation impl =
+            new LiquidityBootstrappingHooksImplementation(manager, liquidityBootstrappingHooks);
         (, bytes32[] memory writes) = vm.accesses(address(impl));
-        vm.etch(address(liquidityBootstrappingPool), address(impl).code);
+        vm.etch(address(liquidityBootstrappingHooks), address(impl).code);
         // for each storage key that was written during the hook implementation, copy the value over
         unchecked {
             for (uint256 i = 0; i < writes.length; i++) {
                 bytes32 slot = writes[i];
-                vm.store(address(liquidityBootstrappingPool), slot, vm.load(address(impl), slot));
+                vm.store(address(liquidityBootstrappingHooks), slot, vm.load(address(impl), slot));
             }
         }
         key = PoolKey(
@@ -69,15 +69,15 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             Currency.wrap(address(token1)),
             0,
             MIN_TICK_SPACING,
-            liquidityBootstrappingPool
+            liquidityBootstrappingHooks
         );
         id = key.toId();
 
         swapRouter = new PoolSwapTest(manager);
         modifyPositionRouter = new PoolModifyPositionTest(IPoolManager(address(manager)));
 
-        token0.approve(address(liquidityBootstrappingPool), type(uint256).max);
-        token1.approve(address(liquidityBootstrappingPool), type(uint256).max);
+        token0.approve(address(liquidityBootstrappingHooks), type(uint256).max);
+        token1.approve(address(liquidityBootstrappingHooks), type(uint256).max);
         token0.approve(address(swapRouter), type(uint256).max);
         token1.approve(address(swapRouter), type(uint256).max);
         token0.approve(address(modifyPositionRouter), type(uint256).max);
@@ -94,10 +94,10 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         (uint128 totalAmount, uint32 startTime, uint32 endTime, int24 minTick, int24 maxTick, bool isToken0) =
-            liquidityBootstrappingPool.liquidityInfo();
+            liquidityBootstrappingHooks.liquidityInfo(id);
 
         assertEq(totalAmount, liquidityInfo.totalAmount);
         assertEq(startTime, liquidityInfo.startTime);
@@ -106,7 +106,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         assertEq(maxTick, liquidityInfo.maxTick);
         assertEq(isToken0, liquidityInfo.isToken0);
 
-        assertEq(token0.balanceOf(address(liquidityBootstrappingPool)), liquidityInfo.totalAmount);
+        assertEq(token0.balanceOf(address(liquidityBootstrappingHooks)), liquidityInfo.totalAmount);
     }
 
     function testAfterInitializeRevertsInvalidTimeRange() public {
@@ -121,7 +121,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTimeRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 2: endTime < block.timestamp
         vm.warp(1000);
@@ -136,7 +136,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTimeRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
     }
 
     function testAfterInitializeRevertsInvalidTickRange() public {
@@ -151,7 +151,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 2: minTick < minUsableTick
         int24 minUsableTick = TickMath.minUsableTick(MIN_TICK_SPACING);
@@ -166,7 +166,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 3: maxTick > maxUsableTick
         int24 maxUsableTick = TickMath.maxUsableTick(MIN_TICK_SPACING);
@@ -181,7 +181,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
     }
 
     function testGetTargetMinTick() public {
@@ -194,19 +194,19 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 1: No time has passed, so the target min tick should be the max tick
-        liquidityBootstrappingPool.getTargetMinTick(100000);
+        liquidityBootstrappingHooks.getTargetMinTick(id, 100000);
 
         // CASE 2: Half the time has passed, so the target min tick should be the average of the min and max ticks
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(100000 + 864000 / 2), 0);
+        assertEq(liquidityBootstrappingHooks.getTargetMinTick(id, 100000 + 864000 / 2), 0);
 
         // CASE 3: All the time has passed, so the target min tick should be the min tick
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(100000 + 864000), -42069);
+        assertEq(liquidityBootstrappingHooks.getTargetMinTick(id, 100000 + 864000), -42069);
 
         // CASE 4: More time has passed, so the target min tick should still be the min tick
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(100000 + 864000 + 1000), -42069);
+        assertEq(liquidityBootstrappingHooks.getTargetMinTick(id, 100000 + 864000 + 1000), -42069);
     }
 
     function testGetTargetMinTickRevertsBeforeStartTime() public {
@@ -219,10 +219,10 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         vm.expectRevert(bytes4(keccak256("BeforeStartTime()")));
-        liquidityBootstrappingPool.getTargetMinTick(99999);
+        liquidityBootstrappingHooks.getTargetMinTick(id, 99999);
     }
 
     // int16 ticks to ensure they're within the usable tick range
@@ -246,11 +246,11 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // Assert less than or equal to maxTick and greater than or equal to minTick
         int24 targetMinTick =
-            liquidityBootstrappingPool.getTargetMinTick(block.timestamp + startTime + timeRange / timePassedDenominator);
+            liquidityBootstrappingHooks.getTargetMinTick(id, block.timestamp + startTime + timeRange / timePassedDenominator);
         assertTrue(targetMinTick < maxTick || targetMinTick == maxTick);
         assertTrue(targetMinTick > minTick || targetMinTick == minTick);
     }
@@ -265,19 +265,19 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 1: No time has passed, so the target liquidity should be 0
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000), 0);
+        assertEq(liquidityBootstrappingHooks.getTargetLiquidity(id, 100000), 0);
 
         // CASE 2: Half the time has passed, so the target liquidity should be half the total amount
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000 + 864000 / 2), 210345e17);
+        assertEq(liquidityBootstrappingHooks.getTargetLiquidity(id, 100000 + 864000 / 2), 210345e17);
 
         // CASE 3: All the time has passed, so the target liquidity should be the total amount
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000 + 864000), 42069e18);
+        assertEq(liquidityBootstrappingHooks.getTargetLiquidity(id, 100000 + 864000), 42069e18);
 
         // CASE 4: More time has passed, so the target liquidity should still be the total amount
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000 + 864000 + 3600), 42069e18);
+        assertEq(liquidityBootstrappingHooks.getTargetLiquidity(id, 100000 + 864000 + 3600), 42069e18);
     }
 
     function testGetTargetLiquidityRevertsBeforeStartTime() public {
@@ -290,10 +290,10 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         vm.expectRevert(bytes4(keccak256("BeforeStartTime()")));
-        liquidityBootstrappingPool.getTargetLiquidity(99999);
+        liquidityBootstrappingHooks.getTargetLiquidity(id, 99999);
     }
 
     function testFuzzGetTargetLiquidity(
@@ -316,9 +316,9 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
-        uint256 targetLiquidity = liquidityBootstrappingPool.getTargetLiquidity(
+        uint256 targetLiquidity = liquidityBootstrappingHooks.getTargetLiquidity(id, 
             block.timestamp + startTime + timeRange / timePassedDenominator
         );
         // Assert less than or equal to target amount
@@ -335,13 +335,13 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 1: Before start time, doesn't add liquidity
         vm.warp(9999);
 
         vm.prank(address(manager));
-        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+        liquidityBootstrappingHooks.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         assertEq(manager.getLiquidity(id), 0);
 
@@ -349,10 +349,10 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         vm.warp(50000);
 
         vm.prank(address(manager));
-        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+        liquidityBootstrappingHooks.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         // Check liquidity at expected tick range
-        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 15741, 20000);
+        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingHooks), 15741, 20000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed
         assertEq(position.liquidity, 4878558521669597624372);
@@ -361,16 +361,16 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         vm.warp(10000 + 86400 + 3600);
 
         vm.prank(address(manager));
-        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+        liquidityBootstrappingHooks.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         // Check liquidity at full tick range
-        position = manager.getPosition(id, address(liquidityBootstrappingPool), 10000, 20000);
+        position = manager.getPosition(id, address(liquidityBootstrappingHooks), 10000, 20000);
 
         // Assert liquidity value at new position is total amount of liquidity
         assertEq(position.liquidity, 4190272079389499705764);
 
         // Assert no liquidity at old position
-        position = manager.getPosition(id, address(liquidityBootstrappingPool), 15741, 20000);
+        position = manager.getPosition(id, address(liquidityBootstrappingHooks), 15741, 20000);
         assertEq(position.liquidity, 0);
     }
 
@@ -384,7 +384,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 1: Tick is in range, swaps out of range and adds liquidity with remaining amount
 
@@ -394,7 +394,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         (, int24 beforeTick,,,,) = manager.getSlot0(id);
 
         vm.prank(address(manager));
-        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+        liquidityBootstrappingHooks.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         // Get tick after swap
         (, int24 afterTick,,,,) = manager.getSlot0(id);
@@ -406,7 +406,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         assertEq(afterTick, 2870);
 
         // Check liquidity at expected tick range
-        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingPool), 2871, 5000);
+        Position.Info memory position = manager.getPosition(id, address(liquidityBootstrappingHooks), 2871, 5000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed
         assertEq(position.liquidity, 4869217071209495223347);
@@ -419,7 +419,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         (, beforeTick,,,,) = manager.getSlot0(id);
 
         vm.prank(address(manager));
-        liquidityBootstrappingPool.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
+        liquidityBootstrappingHooks.beforeSwap(address(0xBEEF), key, IPoolManager.SwapParams(true, 0, 0), bytes(""));
 
         // Get tick after swap
         (, afterTick,,,,) = manager.getSlot0(id);
@@ -431,7 +431,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         assertEq(afterTick, 2245);
 
         // Check liquidity at expected tick range
-        position = manager.getPosition(id, address(liquidityBootstrappingPool), 2246, 5000);
+        position = manager.getPosition(id, address(liquidityBootstrappingHooks), 2246, 5000);
 
         // Assert liquidity value is proportional amount of liquidity to time passed - amount swapped
         assertEq(position.liquidity, 4791885898590874707175);
@@ -450,17 +450,17 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // Sync part way through
         vm.warp(50000);
-        liquidityBootstrappingPool.sync(key);
+        liquidityBootstrappingHooks.sync(key);
 
         // Skip to end time
         vm.warp(10000 + 86400 + 3600);
 
         // Exit
-        liquidityBootstrappingPool.exit(key);
+        liquidityBootstrappingHooks.exit(key);
 
         // Get balance after exit
         uint256 balanceAfter = token0.balanceOf(address(this));
@@ -479,7 +479,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // Before start time
         vm.warp(5000);
@@ -513,7 +513,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         vm.warp(50000);
 
         // Sync
-        liquidityBootstrappingPool.sync(key);
+        liquidityBootstrappingHooks.sync(key);
 
         // Swap
         vm.startPrank(address(0xdeadbeef));
@@ -533,7 +533,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         vm.stopPrank();
 
         // Exit
-        liquidityBootstrappingPool.exit(key);
+        liquidityBootstrappingHooks.exit(key);
     }
 
     function testFullFlowToken1() public {
@@ -546,7 +546,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: false
         });
 
-        manager.initialize(key, SQRT_RATIO_1_2, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_1_2, abi.encode(liquidityInfo, 1 hours));
 
         // Before start time
         vm.warp(5000);
@@ -580,7 +580,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         vm.warp(50000);
 
         // Sync
-        liquidityBootstrappingPool.sync(key);
+        liquidityBootstrappingHooks.sync(key);
 
         // Swap
         vm.startPrank(address(0xdeadbeef));
@@ -600,6 +600,6 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         vm.stopPrank();
 
         // Exit
-        liquidityBootstrappingPool.exit(key);
+        liquidityBootstrappingHooks.exit(key);
     }
 }
