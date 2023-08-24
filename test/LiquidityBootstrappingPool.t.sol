@@ -94,10 +94,10 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         (uint128 totalAmount, uint32 startTime, uint32 endTime, int24 minTick, int24 maxTick, bool isToken0) =
-            liquidityBootstrappingPool.liquidityInfo();
+            liquidityBootstrappingPool.liquidityInfo(id);
 
         assertEq(totalAmount, liquidityInfo.totalAmount);
         assertEq(startTime, liquidityInfo.startTime);
@@ -121,7 +121,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTimeRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 2: endTime < block.timestamp
         vm.warp(1000);
@@ -136,7 +136,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTimeRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
     }
 
     function testAfterInitializeRevertsInvalidTickRange() public {
@@ -151,7 +151,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 2: minTick < minUsableTick
         int24 minUsableTick = TickMath.minUsableTick(MIN_TICK_SPACING);
@@ -166,7 +166,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 3: maxTick > maxUsableTick
         int24 maxUsableTick = TickMath.maxUsableTick(MIN_TICK_SPACING);
@@ -181,7 +181,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
         });
 
         vm.expectRevert(bytes4(keccak256("InvalidTickRange()")));
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
     }
 
     function testGetTargetMinTick() public {
@@ -194,19 +194,19 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 1: No time has passed, so the target min tick should be the max tick
-        liquidityBootstrappingPool.getTargetMinTick(100000);
+        liquidityBootstrappingPool.getTargetMinTick(id, 100000);
 
         // CASE 2: Half the time has passed, so the target min tick should be the average of the min and max ticks
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(100000 + 864000 / 2), 0);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(id, 100000 + 864000 / 2), 0);
 
         // CASE 3: All the time has passed, so the target min tick should be the min tick
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(100000 + 864000), -42069);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(id, 100000 + 864000), -42069);
 
         // CASE 4: More time has passed, so the target min tick should still be the min tick
-        assertEq(liquidityBootstrappingPool.getTargetMinTick(100000 + 864000 + 1000), -42069);
+        assertEq(liquidityBootstrappingPool.getTargetMinTick(id, 100000 + 864000 + 1000), -42069);
     }
 
     function testGetTargetMinTickRevertsBeforeStartTime() public {
@@ -219,10 +219,10 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         vm.expectRevert(bytes4(keccak256("BeforeStartTime()")));
-        liquidityBootstrappingPool.getTargetMinTick(99999);
+        liquidityBootstrappingPool.getTargetMinTick(id, 99999);
     }
 
     // int16 ticks to ensure they're within the usable tick range
@@ -246,11 +246,11 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // Assert less than or equal to maxTick and greater than or equal to minTick
         int24 targetMinTick =
-            liquidityBootstrappingPool.getTargetMinTick(block.timestamp + startTime + timeRange / timePassedDenominator);
+            liquidityBootstrappingPool.getTargetMinTick(id, block.timestamp + startTime + timeRange / timePassedDenominator);
         assertTrue(targetMinTick < maxTick || targetMinTick == maxTick);
         assertTrue(targetMinTick > minTick || targetMinTick == minTick);
     }
@@ -265,19 +265,19 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 1: No time has passed, so the target liquidity should be 0
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000), 0);
+        assertEq(liquidityBootstrappingPool.getTargetLiquidity(id, 100000), 0);
 
         // CASE 2: Half the time has passed, so the target liquidity should be half the total amount
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000 + 864000 / 2), 210345e17);
+        assertEq(liquidityBootstrappingPool.getTargetLiquidity(id, 100000 + 864000 / 2), 210345e17);
 
         // CASE 3: All the time has passed, so the target liquidity should be the total amount
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000 + 864000), 42069e18);
+        assertEq(liquidityBootstrappingPool.getTargetLiquidity(id, 100000 + 864000), 42069e18);
 
         // CASE 4: More time has passed, so the target liquidity should still be the total amount
-        assertEq(liquidityBootstrappingPool.getTargetLiquidity(100000 + 864000 + 3600), 42069e18);
+        assertEq(liquidityBootstrappingPool.getTargetLiquidity(id, 100000 + 864000 + 3600), 42069e18);
     }
 
     function testGetTargetLiquidityRevertsBeforeStartTime() public {
@@ -290,10 +290,10 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         vm.expectRevert(bytes4(keccak256("BeforeStartTime()")));
-        liquidityBootstrappingPool.getTargetLiquidity(99999);
+        liquidityBootstrappingPool.getTargetLiquidity(id, 99999);
     }
 
     function testFuzzGetTargetLiquidity(
@@ -316,9 +316,9 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
-        uint256 targetLiquidity = liquidityBootstrappingPool.getTargetLiquidity(
+        uint256 targetLiquidity = liquidityBootstrappingPool.getTargetLiquidity(id, 
             block.timestamp + startTime + timeRange / timePassedDenominator
         );
         // Assert less than or equal to target amount
@@ -335,7 +335,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 1: Before start time, doesn't add liquidity
         vm.warp(9999);
@@ -384,7 +384,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // CASE 1: Tick is in range, swaps out of range and adds liquidity with remaining amount
 
@@ -450,7 +450,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // Sync part way through
         vm.warp(50000);
@@ -479,7 +479,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: true
         });
 
-        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_2_1, abi.encode(liquidityInfo, 1 hours));
 
         // Before start time
         vm.warp(5000);
@@ -546,7 +546,7 @@ contract LiquidityBootstrappingPoolTest is Test, Deployers {
             isToken0: false
         });
 
-        manager.initialize(key, SQRT_RATIO_1_2, abi.encode(liquidityInfo));
+        manager.initialize(key, SQRT_RATIO_1_2, abi.encode(liquidityInfo, 1 hours));
 
         // Before start time
         vm.warp(5000);
