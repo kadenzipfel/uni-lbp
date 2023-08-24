@@ -20,10 +20,10 @@ error InvalidTickRange();
 error BeforeStartTime();
 error BeforeEndTime();
 
-/// @title LiquidityBootstrappingPool
+/// @title LiquidityBootstrappingHooks
 /// @notice Uniswap V4 hook-enabled, capital efficient, liquidity bootstrapping pool.
 /// @author https://github.com/kadenzipfel
-contract LiquidityBootstrappingPool is BaseHook, Owned {
+contract LiquidityBootstrappingHooks is BaseHook, Owned {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
 
@@ -128,7 +128,7 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
             ERC20(Currency.unwrap(key.currency1)).transferFrom(sender, address(this), data_.liquidityInfo_.totalAmount);
         }
 
-        return LiquidityBootstrappingPool.afterInitialize.selector;
+        return LiquidityBootstrappingHooks.afterInitialize.selector;
     }
 
     /// @notice Hook called by the poolManager before swap
@@ -145,12 +145,12 @@ contract LiquidityBootstrappingPool is BaseHook, Owned {
         if (liquidityInfo[poolId].startTime > block.timestamp) {
             // Liquidity bootstrapping period has not started yet,
             // allow swapping as usual
-            return LiquidityBootstrappingPool.beforeSwap.selector;
+            return LiquidityBootstrappingHooks.beforeSwap.selector;
         }
 
         sync(key);
 
-        return LiquidityBootstrappingPool.beforeSwap.selector;
+        return LiquidityBootstrappingHooks.beforeSwap.selector;
     }
 
     /// @notice Logic to sync the pool to the current epoch
