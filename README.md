@@ -1,6 +1,6 @@
 # Uni-LBP
 
-A capital-efficient liquidity bootstrapping pool (LBP) for Uniswap V4 via hooks.
+A capital-efficient Uniswap v4 liquidity bootstrapping pool (LBP) enabled via hooks.
 
 ## Overview
 
