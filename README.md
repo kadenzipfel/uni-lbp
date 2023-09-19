@@ -4,7 +4,7 @@ A capital-efficient Uniswap v4 liquidity bootstrapping pool (LBP) hooks contract
 
 ## Overview
 
-Uni-LBP is a Uniswap v4 pool, allowing tokens to be sold at a linearly decreasing price. By leveraging v4 hooks, it emulates the functionality of Balancer's LBP. The pool smoothly increases liquidity and sell pressure based on a set schedule, ensuring accurate price discovery, equality for all purchasers, and reduced bot effectiveness.
+Uni-LBP is a Uniswap v4 pool that allows tokens to be sold at a linearly decreasing price. By leveraging v4 hooks, it emulates the functionality of Balancer's LBP. The pool smoothly increases liquidity and sell pressure based on a set schedule, ensuring accurate price discovery, equality for all purchasers, and reduced bot effectiveness.
 
 ### Benefits
 
